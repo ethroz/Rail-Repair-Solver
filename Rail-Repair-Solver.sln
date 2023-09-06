@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32421.90
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CppProgramming", "CppProgramming\CppProgramming.vcxproj", "{245985FE-95A2-492B-972D-D19632815399}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Rail-Repair-Solver", "Rail-Repair-Solver\Rail-Repair-Solver.vcxproj", "{245985FE-95A2-492B-972D-D19632815399}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tests", "Tests\Tests.vcxproj", "{4750C2D6-A161-4026-9746-1F8BB8E8E4EE}"
 EndProject

@@ -132,12 +132,12 @@
     <ClCompile Include="Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\CppProgramming\Allocator.hpp" />
-    <ClInclude Include="..\CppProgramming\Components.hpp" />
-    <ClInclude Include="..\CppProgramming\CoordSystem.hpp" />
-    <ClInclude Include="..\CppProgramming\GameLogic.hpp" />
-    <ClInclude Include="..\CppProgramming\Queue.hpp" />
-    <ClInclude Include="..\CppProgramming\Utils.hpp" />
+    <ClInclude Include="..\Rail-Repair-Solver\Allocator.hpp" />
+    <ClInclude Include="..\Rail-Repair-Solver\Components.hpp" />
+    <ClInclude Include="..\Rail-Repair-Solver\CoordSystem.hpp" />
+    <ClInclude Include="..\Rail-Repair-Solver\GameLogic.hpp" />
+    <ClInclude Include="..\Rail-Repair-Solver\Queue.hpp" />
+    <ClInclude Include="..\Rail-Repair-Solver\Utils.hpp" />
     <ClInclude Include="Test.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

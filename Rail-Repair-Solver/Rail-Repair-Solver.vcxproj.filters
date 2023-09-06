@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CppProgramming.cpp">
+    <ClCompile Include="Rail-Repair-Solver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
