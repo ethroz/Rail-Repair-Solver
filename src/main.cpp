@@ -52,13 +52,15 @@ int main() {
                 std::cout << std::format("Solution found: {}", sequence) << std::endl;
 
                 // Save the solution to the file.
-                if (fileContents.ends_with('\n')) {
-                    if (!std::filesystem::exists(levelPath)) {
-                        throw std::runtime_error("File no longer exists. Cannot save solution");
-                    }
+                if (std::filesystem::exists(levelPath)) {
+                    const size_t boardLength = fileContents.rfind('\n') + 1;
+                    const std::string newFileContents = fileContents.substr(0, boardLength) + sequence;
 
-                    std::fstream file(levelPath, std::ios::out | std::ios::app);
-                    file << sequence;
+                    std::ofstream file(levelPath, std::ios::out | std::ios::trunc | std::ios::binary);
+                    file << newFileContents;
+                }
+                else {
+                    std::cerr << "File no longer exists. Cannot save solution" << std::endl;
                 }
             }
         }
