@@ -119,7 +119,7 @@ const static std::unordered_map<CellDescriptor, Cell> LEGEND = {
     {{'d', false}, MOVABLE_SE},
 };
 
-std::string getFile(const std::filesystem::path& path) {
+std::string readFile(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path)) {
         throw std::invalid_argument("File does not exist");
     }
@@ -295,7 +295,8 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
 
         count++;
         if (count % 1000000 == 0) {
-            std::cout << count << std::endl;
+            std::cout << std::format("States checked: {}\r", count);
+            std::cout.flush();
         }
 
         for (Direction dir = MIN_DIR; dir < MAX_DIR; dir = Direction(dir + 1)) {

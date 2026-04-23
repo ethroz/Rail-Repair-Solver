@@ -38,10 +38,10 @@ public:
     [[nodiscard]] bool passed() const { return !failed; }
 
     virtual void runTest() = 0;
-
+    
+    bool failed = false;
 protected:
     const std::string_view func_name;
-    bool failed = false;
 };
 
 template<typename T>
@@ -86,6 +86,9 @@ void Fixture_##x::runTest()
 #define EXPECT_TRUE(x) if (!x) { failed = true; std::cerr << std::format("Failed expect on line {}\n{} is false", __LINE__, toString(x)) << std::endl; }
 #define EXPECT_FALSE(x) if (x) { failed = true; std::cerr << std::format("Failed expect on line {}\n{} is true", __LINE__, toString(x)) << std::endl; }
 #define ASSERT_EQ(x, y) if (x != y) { failed = true; throw TestException(std::format("Failed assert on line {}\n{} != {}", __LINE__, toString(x), toString(y))); }
+#define ASSERT_TRUE(x) if (!x) { failed = true; throw TestException(std::format("Failed assert on line {}\n{} is false", __LINE__, toString(x))); }
+#define ASSERT_FALSE(x) if (x) { failed = true; throw TestException(std::format("Failed assert on line {}\n{} is true", __LINE__, toString(x))); }
+#define FAIL() if (true) { failed = true; throw TestException(std::format("Test failed on line {}", __LINE__)); }
 
 // Main function.
 
@@ -115,9 +118,11 @@ int main() {
             std::cerr << e.what() << std::endl;
         }
         catch (const std::exception& e) {
+            test->failed = true;
             std::cerr << "Test threw exception: " << e.what() << std::endl;
         }
         catch (...) {
+            test->failed = true;
             std::cerr << "Test threw unknown exception" << std::endl;
         }
 

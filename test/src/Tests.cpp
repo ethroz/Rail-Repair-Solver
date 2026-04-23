@@ -1,3 +1,8 @@
+#include <filesystem>
+#include <regex>
+#include <string>
+#include <string_view>
+
 #include "Test.hpp"
 
 #include "Components.hpp"
@@ -160,6 +165,27 @@ TEST(Position) {
         const Position actual(NONE);
         const Position expected(0, 0);
         EXPECT_EQ(expected, actual);
+    }
+}
+
+static std::regex LEVEL_FILE_REGEX{"level\\d+.txt"};
+TEST(LevelParsing) {
+    const std::filesystem::path levelsPath = std::filesystem::canonical(
+        std::filesystem::path(__FILE__) / ".." / ".." / ".." / "levels"
+    );
+    for (const std::filesystem::directory_entry dirEntry : std::filesystem::directory_iterator(levelsPath)) {
+        if (!dirEntry.is_regular_file()) {
+            continue;
+        }
+
+        const std::filesystem::path& levelPath = dirEntry.path();
+        const std::string levelFilename = levelPath.filename().string();
+        if (!std::regex_match(levelFilename, LEVEL_FILE_REGEX)) {
+            continue;
+        }
+
+        const std::string fileContents = readFile(levelPath);
+        stateFromString(fileContents);
     }
 }
 

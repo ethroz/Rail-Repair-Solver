@@ -30,12 +30,12 @@ int main() {
                 break;
             }
             size_t level = std::stoll(levelStr);
-            const auto repoPath = std::filesystem::canonical(
+            const std::filesystem::path repoPath = std::filesystem::canonical(
                 std::filesystem::path(__FILE__) / ".." / ".."
             );
-            const auto levelPath = repoPath / "levels" / std::format("level{}.txt", level);
-            const std::string levelFile = getFile(levelPath);
-            const auto initialState = stateFromString(levelFile);
+            const std::filesystem::path levelPath = repoPath / "levels" / std::format("level{}.txt", level);
+            const std::string fileContents = readFile(levelPath);
+            const auto initialState = stateFromString(fileContents);
             StartList startList = createStartList(initialState);
 
             const auto solution = search(startList, initialState);
@@ -52,12 +52,12 @@ int main() {
                 std::cout << std::format("Solution found: {}", sequence) << std::endl;
 
                 // Save the solution to the file.
-                if (levelFile.ends_with('\n')) {
-                    if (!std::filesystem::exists(levelFile)) {
+                if (fileContents.ends_with('\n')) {
+                    if (!std::filesystem::exists(levelPath)) {
                         throw std::runtime_error("File no longer exists. Cannot save solution");
                     }
 
-                    std::fstream file(levelFile, std::ios::out | std::ios::app);
+                    std::fstream file(levelPath, std::ios::out | std::ios::app);
                     file << sequence;
                 }
             }
