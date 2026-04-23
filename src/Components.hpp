@@ -2,6 +2,9 @@
 
 #include <array>
 #include <cstdint>
+#include <format>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "CoordSystem.hpp"
@@ -41,12 +44,12 @@ enum CELL : uint8_t {
     MOVABLE_SW   = TRACK | SW,
     MOVABLE_H    = TRACK | H,
     MOVABLE_V    = TRACK | V,
-    VOID         = 255,
+    NOTHING      = 255,
 };
 
 struct Cell {
 public:
-    constexpr Cell() : m_cell(VOID) {}
+    constexpr Cell() : m_cell(NOTHING) {}
     constexpr Cell(CELL cell) : m_cell(cell) {}
 
     constexpr bool isMovable() const { return (m_cell & IMMOVABLE) == 0; }

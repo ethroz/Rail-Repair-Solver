@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <format>
 #include <stdexcept>
+#include <utility>
 
 enum Direction : uint8_t {
     MIN_DIR = 0,

@@ -1,6 +1,9 @@
+#include <cstdint>
 #include <exception>
 #include <format>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
