@@ -277,7 +277,7 @@ bool simulateTrain(const StartList& startList, const Grid& grid, uint8_t index) 
     return false;
 }
 
-std::vector<Direction> search(const StartList& startList, const State& initialState) {
+std::vector<Direction> search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
     // Create a queue for BFS.
     std::unordered_set<Grid> visited(3000000);
     Queue<State> queue(5000000);
@@ -297,6 +297,9 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
         if (count % 1000000 == 0) {
             std::cout << std::format("States checked: {}\r", count);
             std::cout.flush();
+            if (done) {
+                break;
+            }
         }
 
         for (Direction dir = MIN_DIR; dir < MAX_DIR; dir = Direction(dir + 1)) {

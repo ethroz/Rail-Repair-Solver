@@ -38,7 +38,7 @@ int main() {
             const auto initialState = stateFromString(fileContents);
             StartList startList = createStartList(initialState);
 
-            const auto solution = search(startList, initialState);
+            const auto solution = search(startList, initialState, done);
             if (solution.empty()) {
                 std::cout << "No solution found" << std::endl;
             }
