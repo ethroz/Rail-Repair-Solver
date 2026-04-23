@@ -163,7 +163,7 @@ TEST(Position) {
     }
 }
 
-TEST(Simulate) {
+TEST(SimulateTrain) {
     constexpr std::string_view level =
         "########\n"
         "1HHHHL@#\n"
@@ -181,7 +181,7 @@ TEST(Simulate) {
     EXPECT_TRUE(result);
 }
 
-TEST(Search) {
+TEST(SolutionSearch) {
     constexpr std::string_view level =
         "########\n"
         "1HHHHL@#\n"

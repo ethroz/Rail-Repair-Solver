@@ -1,8 +1,8 @@
+#pragma once
+
 #include <cassert>
 #include <cstdlib>
 #include <filesystem>
-#pragma once
-
 #include <format>
 #include <fstream>
 #include <functional>
@@ -60,17 +60,13 @@ struct std::hash<Grid> {
                 const auto cell = grid.at(x, y);
                 if (cell.isMovable()) {
                     if (cell != FLOOR) {
-                        if (objectQueue.size() >= MAX_OBJECTS) {
-                            throw std::logic_error("Did not expect more than the max objects");
-                        }
+                        assert(objectQueue.size() < MAX_OBJECTS);
                         objectQueue.push({ cell, pos });
                     }
                     pos++;
                 }
                 else if (cell.isLever()) {
-                    if (leverIndex >= MAX_LEVERS) {
-                        throw std::logic_error("Did not expect more than the max levers");
-                    }
+                    assert(leverIndex < MAX_LEVERS);
                     leverStates[leverIndex++] = cell.leverState();
                 }
             }
@@ -97,9 +93,6 @@ const static std::unordered_map<CellDescriptor, Cell> LEGEND = {
     {{'#', true }, WALL},
     {{'*', false}, HOLE},
     {{' ', false}, FLOOR},
-    {{'1', false}, LEVER1_OFF},
-    {{'2', false}, LEVER2_OFF},
-    {{'3', false}, LEVER3_OFF},
     {{'1', false}, LEVER1_OFF},
     {{'2', false}, LEVER2_OFF},
     {{'3', false}, LEVER3_OFF},
