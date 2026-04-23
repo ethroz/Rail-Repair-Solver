@@ -28,6 +28,7 @@ add_executable(rail_repair_solver_tests
 target_include_directories(rail_repair_solver_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/test/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
 )
 
 enable_testing()

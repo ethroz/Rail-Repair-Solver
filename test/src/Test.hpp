@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "Utils.hpp"
+#include <rlutil.h>
 
 // Test Things.
 
@@ -64,6 +64,13 @@ inline std::string toString(const T& val) {
     }
 }
 
+using ColorType = decltype(rlutil::WHITE);
+
+struct ColorScope {
+    ColorScope(ColorType color) { rlutil::setColor(color); }
+    ~ColorScope() { rlutil::resetColor(); }
+};
+
 }
 
 // Defines
@@ -85,6 +92,18 @@ void Fixture_##x::runTest()
 int main() {
     std::cout << "Running All Tests\n" << std::endl;
 
+    rlutil::saveDefaultColor();
+
+    const auto pass = []() -> std::ostream & {
+        const auto scope = ColorScope(rlutil::GREEN);
+        return std::cout << "Pass";
+    };
+
+    const auto fail = []() -> std::ostream& {
+        const auto scope = ColorScope(rlutil::RED);
+        return std::cout << "Fail";
+    };
+
     std::vector<std::string_view> failedTests;
     for (const auto& test : tests) {
         std::cout << std::format("Running {}", test->name()) << std::endl;
@@ -102,19 +121,18 @@ int main() {
             std::cerr << "Test threw unknown exception" << std::endl;
         }
 
-        if (test->passed()) {
-            std::cout << std::format("Done {}\n", test->name()) << std::endl;
-        }
-        else {
+        (test->passed() ? pass() : fail()) << std::format(" {}\n", test->name()) << std::endl;
+        if (!test->passed()) {
             failedTests.push_back(test->name());
-            std::cout << std::format("Failed {}\n", test->name()) << std::endl;
         }
     }
 
     if (failedTests.empty()) {
+        const auto scope = ColorScope(rlutil::GREEN);
         std::cout << "All Tests Passed" << std::endl;
     }
     else {
+        const auto scope = ColorScope(rlutil::RED);
         std::cout << std::format("{} Test{} Failed:", failedTests.size(), failedTests.size() == 1 ? "" : "s") << std::endl;
         for (const auto& failedTest : failedTests) {
             std::cerr << failedTest << std::endl;
