@@ -132,7 +132,7 @@ std::string getFile(const std::filesystem::path& path) {
 State stateFromString(std::string_view board) {
     State state;
 
-    size_t temp = board.find('\n');
+    size_t temp = board.find_first_of("\r\n");
     if (temp < 2 || temp > X_MAX) {
         throw std::invalid_argument("Invalid level width");
     }
@@ -161,6 +161,9 @@ State stateFromString(std::string_view board) {
             else {
                 continue;
             }
+        }
+        else if (character == '\r') {
+            continue;
         }
 
         const bool top = pos.y == 0;

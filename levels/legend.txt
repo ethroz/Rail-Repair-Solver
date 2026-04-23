@@ -1,0 +1,34 @@
+1 Red (1st) lever
+2 Green (2nd) lever
+3 Blue (3rd) lever
+4 4th lever
+5 5th lever
+6 6th lever
+7 7th lever
+8 8th lever
+9 9th lever
+0 10th lever
+
+h Horizontal box
+v Vertical box
+l Left/Down box
+u Up/Left box
+r Right/Up box
+d Down/Right box
+
+H Horizontal box wall
+V Vertical box wall
+L Left/Down box wall
+U Up/Left box wall
+R Right/Up box wall
+D Down/Right box wall
+
+# Wall
+* Hole
+. Filled hole
+  Floor
+@ Player
+1234567890 Input Tracks and Levers
+!WE$%^&I() Pulled levers
+hvlurd Boxes
+HVLURD Box Walls
