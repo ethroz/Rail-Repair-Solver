@@ -1,8 +1,8 @@
 #include "Test.hpp"
 
-#include "../Rail-Repair-Solver/Components.hpp"
-#include "../Rail-Repair-Solver/CoordSystem.hpp"
-#include "../Rail-Repair-Solver/GameLogic.hpp"
+#include "Components.hpp"
+#include "CoordSystem.hpp"
+#include "GameLogic.hpp"
 
 TEST(Tracks_NW) {
     const Cell c = MOVABLE_NW;
