@@ -208,6 +208,20 @@ TEST(SimulateTrain) {
     EXPECT_TRUE(result);
 }
 
+TEST(SimulateTrain_DoesNotExitWhenEdgeTrackTurnsBackIntoGrid) {
+    constexpr std::string_view level =
+        "#DD##\n"
+        "1UH@#\n"
+        "##1 #\n"
+        "#####\n";
+
+    const auto state = stateFromString(level);
+
+    const auto startList = createStartList(state);
+    const auto result = simulateTrain(startList, state.grid, 0);
+    EXPECT_FALSE(result);
+}
+
 TEST(SolutionSearch) {
     constexpr std::string_view level =
         "########\n"

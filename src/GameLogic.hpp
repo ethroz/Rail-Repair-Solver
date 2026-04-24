@@ -265,7 +265,12 @@ bool simulateTrain(const StartList& startList, const Grid& grid, uint8_t index) 
             return false;
         }
 
-        if (((pos.y == 0) || (pos.x == width - 1) || (pos.y == height - 1) || (pos.x == 0)) && !grid.at(pos).isStart()) {
+        const bool exitsGrid =
+            (pos.y == 0 && dir == UP) ||
+            (pos.x == width - 1 && dir == RIGHT) ||
+            (pos.y == height - 1 && dir == DOWN) ||
+            (pos.x == 0 && dir == LEFT);
+        if (exitsGrid) {
             return true;
         }
 
