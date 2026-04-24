@@ -1,13 +1,17 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cassert>
+#include <cstring>
 #include <cstdlib>
+#include <deque>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <queue>
+#include <limits>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -18,6 +22,12 @@
 static uint8_t width = 0;
 static uint8_t height = 0;
 static uint8_t movableSpaces = 0;
+static constexpr size_t maxDynamicSpaces = (X_MAX - 2) * (Y_MAX - 2);
+static uint8_t dynamicSpaces = 0;
+static std::array<Position, maxDynamicSpaces> dynamicPositionLookup{};
+static uint8_t leverSpaces = 0;
+static std::array<Position, X_MAX * Y_MAX> movablePositionLookup{};
+static std::array<Position, MAX_LEVERS> leverPositionLookup{};
 constexpr size_t numBits = sizeof(size_t) * 8;
 static_assert(numBits == 64);
 
@@ -37,53 +47,86 @@ struct std::hash<CellDescriptor> {
     }
 };
 
-struct CellPosition {
-    Cell cell;
-    uint8_t pos;
-};
+size_t gridKey(const Grid& grid) noexcept {
+    constexpr uint64_t offsetBasis = 14695981039346656037ULL;
+    constexpr uint64_t prime = 1099511628211ULL;
+    const auto* data = reinterpret_cast<const uint8_t*>(&grid);
+    uint64_t hash = offsetBasis;
+    size_t offset = 0;
 
-constexpr bool operator>(CellPosition a, CellPosition b) { return a.cell > b.cell; }
+    while (offset + sizeof(uint64_t) <= sizeof(Grid)) {
+        uint64_t chunk = 0;
+        std::memcpy(&chunk, data + offset, sizeof(chunk));
+        hash ^= chunk;
+        hash *= prime;
+        offset += sizeof(uint64_t);
+    }
+
+    if (offset < sizeof(Grid)) {
+        uint64_t tail = 0;
+        std::memcpy(&tail, data + offset, sizeof(Grid) - offset);
+        hash ^= tail;
+        hash *= prime;
+    }
+
+    return size_t(hash ^ (hash >> 32));
+}
 
 template<>
 struct std::hash<Grid> {
     size_t operator()(const Grid& grid) const noexcept {
-        size_t hash = 0;
-        std::array<bool, MAX_LEVERS> leverStates{};
-        std::priority_queue<CellPosition, std::vector<CellPosition>, std::greater<CellPosition>> objectQueue;
-        size_t factor = 1;
-        uint8_t remainingSpaces = movableSpaces;
-        uint8_t pos = 0;
-        uint8_t leverIndex = 0;
+        return gridKey(grid);
+    }
+};
 
-        for (int8_t x = 1; x < width - 1; x++) {
-            for (int8_t y = 1; y < height - 1; y++) {
-                const auto cell = grid.at(x, y);
-                if (cell.isMovable()) {
-                    if (cell != FLOOR) {
-                        assert(objectQueue.size() < MAX_OBJECTS);
-                        objectQueue.push({ cell, pos });
-                    }
-                    pos++;
-                }
-                else if (cell.isLever()) {
-                    assert(leverIndex < MAX_LEVERS);
-                    leverStates[leverIndex++] = cell.leverState();
-                }
-            }
+uint8_t cellValue(Cell cell) noexcept {
+    uint8_t value = 0;
+    static_assert(sizeof(Cell) == sizeof(value));
+    std::memcpy(&value, &cell, sizeof(value));
+    return value;
+}
+
+struct StateKey {
+    std::array<uint8_t, maxDynamicSpaces> cells{};
+};
+
+bool operator==(const StateKey& a, const StateKey& b) noexcept {
+    return std::memcmp(a.cells.data(), b.cells.data(), dynamicSpaces) == 0;
+}
+
+StateKey makeStateKey(const Grid& grid) noexcept {
+    StateKey key;
+    for (uint8_t i = 0; i < dynamicSpaces; i++) {
+        key.cells[i] = cellValue(grid.at(dynamicPositionLookup[i]));
+    }
+    return key;
+}
+
+template<>
+struct std::hash<StateKey> {
+    size_t operator()(const StateKey& key) const noexcept {
+        constexpr uint64_t offsetBasis = 14695981039346656037ULL;
+        constexpr uint64_t prime = 1099511628211ULL;
+        const auto* data = key.cells.data();
+        uint64_t hash = offsetBasis;
+        size_t offset = 0;
+
+        while (offset + sizeof(uint64_t) <= dynamicSpaces) {
+            uint64_t chunk = 0;
+            std::memcpy(&chunk, data + offset, sizeof(chunk));
+            hash ^= chunk;
+            hash *= prime;
+            offset += sizeof(uint64_t);
         }
 
-        while (!objectQueue.empty()) {
-            const auto& cellPos = objectQueue.top();
-            hash += cellPos.pos * factor;
-            factor *= remainingSpaces--;
-            objectQueue.pop();
+        if (offset < dynamicSpaces) {
+            uint64_t tail = 0;
+            std::memcpy(&tail, data + offset, dynamicSpaces - offset);
+            hash ^= tail;
+            hash *= prime;
         }
 
-        for (uint8_t i = 0; i < leverIndex; i++) {
-            hash |= size_t(leverStates[i] ? 1 : 0) << (numBits - 1 - i);
-        }
-
-        return hash;
+        return size_t(hash ^ (hash >> 32));
     }
 };
 
@@ -147,6 +190,8 @@ State stateFromString(std::string_view board) {
     uint8_t numLevers = 0;
     uint8_t numObjects = 0;
     movableSpaces = 0;
+    dynamicSpaces = 0;
+    leverSpaces = 0;
     for (size_t i = 0; i < board.size(); i++) {
         const char character = board[i];
         if (character == '\n') {
@@ -177,7 +222,13 @@ State stateFromString(std::string_view board) {
         const auto cell = LEGEND.at(CellDescriptor{ character, edge });
         state.grid.at(pos) = cell;
 
+        if (cell.isMovable() || cell == HOLE || cell.isLever()) {
+            assert(dynamicSpaces < dynamicPositionLookup.size());
+            dynamicPositionLookup[dynamicSpaces++] = pos;
+        }
+
         if (cell.isMovable()) {
+            movablePositionLookup[movableSpaces] = pos;
             if (cell != FLOOR) {
                 numObjects++;
             }
@@ -185,6 +236,7 @@ State stateFromString(std::string_view board) {
         }
 
         if (cell.isLever()) {
+            leverPositionLookup[leverSpaces++] = pos;
             numLevers++;
         }
         else if (cell == PLAYER) {
@@ -280,17 +332,44 @@ bool simulateTrain(const StartList& startList, const Grid& grid, uint8_t index) 
     return false;
 }
 
-std::vector<Direction> search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
-    std::unordered_set<Grid> visited(3000000);
-    Queue<State> queue(5000000);
+struct SearchState {
+    Grid grid{};
+    Position player{};
+    uint8_t toggledLevers = 0;
+    uint32_t pathIndex = std::numeric_limits<uint32_t>::max();
+};
 
-    queue.push(initialState);
-    visited.insert(initialState.grid);
+struct PathNode {
+    uint32_t parent = std::numeric_limits<uint32_t>::max();
+    Direction move = NONE;
+};
+
+std::vector<Direction> buildSolution(const std::vector<PathNode>& path, uint32_t nodeIndex) {
+    std::vector<Direction> moves;
+
+    while (path[nodeIndex].parent != std::numeric_limits<uint32_t>::max()) {
+        moves.push_back(path[nodeIndex].move);
+        nodeIndex = path[nodeIndex].parent;
+    }
+
+    std::reverse(moves.begin(), moves.end());
+    return moves;
+}
+
+std::vector<Direction> search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
+    std::unordered_set<StateKey> visited(3000000);
+    Queue<SearchState> queue(5000000);
+    std::vector<PathNode> path;
+    const auto goalLevers = uint8_t(startList.size());
+
+    path.push_back({});
+    queue.push({ initialState.grid, initialState.player, initialState.toggledLevers, 0 });
+    visited.insert(makeStateKey(initialState.grid));
 
     size_t count = 0;
 
     while (!queue.empty()) {
-        const auto current = queue.pop();
+        const SearchState current = queue.pop();
 
         count++;
         if (count % 1000000 == 0) {
@@ -302,7 +381,7 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
         }
 
         for (Direction dir = MIN_DIR; dir < MAX_DIR; dir = Direction(dir + 1)) {
-            State nextState = current;
+            SearchState nextState = current;
             nextState.player += Position(dir);
             const auto nextCell = nextState.grid.at(nextState.player);
 
@@ -329,12 +408,11 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
             else if (nextCell.isLever() && !nextCell.leverState() && simulateTrain(startList, nextState.grid, nextCell.index())) {
                 nextState.toggledLevers++;
 
-                if (nextState.toggledLevers == startList.size()) {
-                    nextState.moves.push_back(dir);
-
+                if (nextState.toggledLevers == goalLevers) {
+                    path.push_back({ current.pathIndex, dir });
                     std::cout << "Total iterations: " << count << std::endl;
                     std::cout << "visited size: " << visited.size() << std::endl;
-                    return nextState.moves;
+                    return buildSolution(path, uint32_t(path.size() - 1));
                 }
 
                 nextState.grid.at(nextState.player).toggleLever();
@@ -344,13 +422,12 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                 continue;
             }
 
-            if (visited.contains(nextState.grid)) {
+            if (!visited.insert(makeStateKey(nextState.grid)).second) {
                 continue;
             }
 
-            visited.insert(nextState.grid);
-
-            nextState.moves.push_back(dir);
+            nextState.pathIndex = uint32_t(path.size());
+            path.push_back({ current.pathIndex, dir });
             queue.push(std::move(nextState));
         }
     }
