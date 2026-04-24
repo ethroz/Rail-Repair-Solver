@@ -1,13 +1,6 @@
 1 1st lever
 2 2nd lever
 3 3rd lever
-4 4th lever
-5 5th lever
-6 6th lever
-7 7th lever
-8 8th lever
-9 9th lever
-0 10th lever
 
 h Horizontal box
 v Vertical box
@@ -27,6 +20,6 @@ D Down/Right box wall
 * Hole
   Floor
 @ Player
-1234567890 Input Tracks and Levers
+123 Input Tracks and Levers
 hvlurd Boxes
 HVLURD Box Walls
