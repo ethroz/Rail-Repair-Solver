@@ -135,21 +135,15 @@ public:
     constexpr void linearize() {
         if (m_size > 0 && m_front != 0) {
             if (m_back <= m_front) {
-                m_allocator.construct(m_data + m_back, m_capacity - m_size);
-
-                // Iterate until the dest ptr is greater than the src ptr.
-                // Should only happen for odd array sizes. TODO: confirm this. ########################
-                // Even sizes should end perfectly. TODO: confirm this. ########################
-                const auto swapSize;
+                const auto gapSize = m_capacity - m_size;
+                m_allocator.construct(m_data + m_back, gapSize);
+                std::rotate(m_data, m_data + m_front, m_data + m_capacity);
+                m_allocator.destroy(m_data + m_size, gapSize);
             }
             else if (m_front < m_back) {
                 m_allocator.construct(m_data, m_front);
-
-                for (size_t i = 0; i < m_size; i++) {
-                    std::swap(m_data[i], m_data[m_front + i]);
-                }
-
-                m_allocator.destroy(m_data, m_back - m_size);
+                std::rotate(m_data, m_data + m_front, m_data + m_back);
+                m_allocator.destroy(m_data + m_size, m_front);
             }
         }
 

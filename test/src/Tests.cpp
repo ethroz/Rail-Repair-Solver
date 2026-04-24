@@ -8,6 +8,7 @@
 #include "Components.hpp"
 #include "CoordSystem.hpp"
 #include "GameLogic.hpp"
+#include "Queue.hpp"
 
 TEST(Tracks_NW) {
     const Cell c = MOVABLE_NW;
@@ -250,4 +251,42 @@ TEST(PushIntoHoleFillsHole) {
     EXPECT_EQ(FLOOR, state.grid.at(nextNextMove));
     EXPECT_EQ(PLAYER, state.grid.at(current + Position(RIGHT)));
     EXPECT_EQ(FLOOR, state.grid.at(current));
+}
+
+TEST(QueueLinearizeWrapped) {
+    Queue<int> queue(5);
+    queue.push(1);
+    queue.push(2);
+    queue.push(3);
+    queue.push(4);
+
+    EXPECT_EQ(1, queue.pop());
+    EXPECT_EQ(2, queue.pop());
+
+    queue.push(5);
+    queue.push(6);
+    queue.linearize();
+
+    ASSERT_EQ(3, queue.pop());
+    ASSERT_EQ(4, queue.pop());
+    ASSERT_EQ(5, queue.pop());
+    ASSERT_EQ(6, queue.pop());
+    EXPECT_TRUE(queue.empty());
+}
+
+TEST(QueueLinearizeOffsetContiguous) {
+    Queue<int> queue(6);
+    queue.push(1);
+    queue.push(2);
+    queue.push(3);
+    queue.push(4);
+
+    EXPECT_EQ(1, queue.pop());
+    EXPECT_EQ(2, queue.pop());
+
+    queue.linearize();
+
+    ASSERT_EQ(3, queue.pop());
+    ASSERT_EQ(4, queue.pop());
+    EXPECT_TRUE(queue.empty());
 }
