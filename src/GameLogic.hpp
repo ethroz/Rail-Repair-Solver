@@ -218,7 +218,7 @@ State stateFromString(std::string_view board) {
         if (maxPossibilities / factor < hash) {
             throw std::logic_error(std::format("Cannot store all the possible states in a hash of {} bits", numBits));
         }
-        hash *= movableSpaces;
+        hash *= factor;
     }
 
     return state;
