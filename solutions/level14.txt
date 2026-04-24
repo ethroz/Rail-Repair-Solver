@@ -1,2 +1,2 @@
-Runtime: 0.185000000 s
+Runtime: 0.095112700 s
 Solution: ddrrdddrruldlurruullululldrdrrululdrru

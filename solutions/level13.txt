@@ -1,2 +1,2 @@
-Runtime: 0.184000000 s
+Runtime: 0.068275000 s
 Solution: ulldduurrdlrdlddruuluullddrluurrddrddluulluurdldruurrdduldullul

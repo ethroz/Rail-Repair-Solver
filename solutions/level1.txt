@@ -1,2 +1,2 @@
-Runtime: 0.035000000 s
+Runtime: 0.015290000 s
 Solution: uurrdd
