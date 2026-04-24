@@ -135,7 +135,6 @@ public:
     constexpr void linearize() {
         if (m_size > 0 && m_front != 0) {
             if (m_back <= m_front) {
-                // Construct between the two.
                 m_allocator.construct(m_data + m_back, m_capacity - m_size);
 
                 // Iterate until the dest ptr is greater than the src ptr.
@@ -144,14 +143,12 @@ public:
                 const auto swapSize;
             }
             else if (m_front < m_back) {
-                // Construct before the front.
                 m_allocator.construct(m_data, m_front);
 
                 for (size_t i = 0; i < m_size; i++) {
                     std::swap(m_data[i], m_data[m_front + i]);
                 }
 
-                // Destroy after the end.
                 m_allocator.destroy(m_data, m_back - m_size);
             }
         }

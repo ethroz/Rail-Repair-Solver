@@ -189,7 +189,6 @@ State stateFromString(std::string_view board) {
             numLevers++;
         }
         else if (cell == PLAYER) {
-            // We know it is not an edge because there is no corresponding mapping in the Legend.
             assert(!edge);
             if (state.player.x != 0) {
                 throw std::invalid_argument("Cannot have more than one player");
@@ -211,7 +210,6 @@ State stateFromString(std::string_view board) {
         throw std::invalid_argument(std::format("Invalid number of objects: {}", numObjects));
     }
 
-    // Confirm that the hash size can store all the possible states uniquely.
     size_t maxPossibilities = (size_t(1) << (numBits - numLevers)) - 1;
     size_t hash = 1;
     for (uint8_t i = 0; i < numObjects; i++) {
@@ -279,19 +277,15 @@ bool simulateTrain(const StartList& startList, const Grid& grid, uint8_t index) 
 }
 
 std::vector<Direction> search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
-    // Create a queue for BFS.
     std::unordered_set<Grid> visited(3000000);
     Queue<State> queue(5000000);
 
-    // Queue the start grid.
     queue.push(initialState);
     visited.insert(initialState.grid);
 
     size_t count = 0;
 
-    // Loop until the queue is empty
     while (!queue.empty()) {
-        // Remove the oldest state from the queue.
         const auto current = queue.pop();
 
         count++;
@@ -308,7 +302,6 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
             nextState.player += Position(dir);
             const auto nextCell = nextState.grid.at(nextState.player);
 
-            // Check the validity of this move.
             assert(nextCell != PLAYER);
             if (nextCell.isMovable()) {
                 if (nextCell != FLOOR) {
@@ -319,24 +312,19 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                     }
 
                     if (nextNextCell == HOLE) {
-                        // A block fills a hole and is removed from the board.
                         nextState.grid.at(nextNextMove) = FLOOR;
                     }
                     else {
-                        // Move the block forward.
                         nextState.grid.at(nextNextMove) = nextState.grid.at(nextState.player);
                     }
                 }
 
-                // Move the player forward.
                 nextState.grid.at(nextState.player) = PLAYER;
-                // Overwrite the old player cell.
                 nextState.grid.at(current.player) = FLOOR;
             }
             else if (nextCell.isLever() && !nextCell.leverState() && simulateTrain(startList, nextState.grid, nextCell.index())) {
                 nextState.toggledLevers++;
 
-                // Win condition.
                 if (nextState.toggledLevers == startList.size()) {
                     nextState.moves.push_back(dir);
 
@@ -345,9 +333,7 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                     return nextState.moves;
                 }
 
-                // Toggle the state of the lever.
                 nextState.grid.at(nextState.player).toggleLever();
-                // Keep the player where they are.
                 nextState.player = current.player;
             }
             else {
@@ -358,10 +344,8 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                 continue;
             }
 
-            // Valid and unvisited state so we will mark it as visited.
             visited.insert(nextState.grid);
 
-            // Add the direction to the next state's list.
             nextState.moves.push_back(dir);
             queue.push(std::move(nextState));
         }

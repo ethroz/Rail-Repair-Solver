@@ -38,7 +38,6 @@ bool solveLevel(const std::string& levelStr) {
 
         std::cout << std::format("Solution found: {}", sequence) << std::endl;
 
-        // Save the solution to the file.
         if (std::filesystem::exists(levelPath)) {
             const size_t boardLength = fileContents.rfind('\n') + 1;
             const std::string newFileContents = fileContents.substr(0, boardLength) + sequence;
