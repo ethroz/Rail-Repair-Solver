@@ -92,6 +92,7 @@ const static std::unordered_map<CellDescriptor, Cell> LEGEND = {
     {{'#', false}, WALL},
     {{'#', true }, WALL},
     {{'*', false}, HOLE},
+    {{'.', false}, FLOOR},
     {{' ', false}, FLOOR},
     {{'1', false}, LEVER1_OFF},
     {{'2', false}, LEVER2_OFF},
@@ -317,8 +318,14 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                         continue;
                     }
 
-                    // Move the block forward.
-                    nextState.grid.at(nextNextMove) = nextState.grid.at(nextState.player);
+                    if (nextNextCell == HOLE) {
+                        // A block fills a hole and is removed from the board.
+                        nextState.grid.at(nextNextMove) = FLOOR;
+                    }
+                    else {
+                        // Move the block forward.
+                        nextState.grid.at(nextNextMove) = nextState.grid.at(nextState.player);
+                    }
                 }
 
                 // Move the player forward.

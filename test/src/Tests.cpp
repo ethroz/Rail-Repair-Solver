@@ -225,3 +225,29 @@ TEST(SolutionSearch) {
     ASSERT_EQ(1, solution.size());
     EXPECT_EQ(DOWN, solution[0]);
 }
+
+TEST(PushIntoHoleFillsHole) {
+    constexpr std::string_view level =
+        "######\n"
+        "# @h*#\n"
+        "# 1  #\n"
+        "1HHH #\n"
+        "######\n";
+
+    auto state = stateFromString(level);
+
+    const auto current = state.player;
+    state.player += Position(RIGHT);
+    const auto nextNextMove = state.player + Position(RIGHT);
+    const auto nextNextCell = state.grid.at(nextNextMove);
+
+    ASSERT_EQ(HOLE, nextNextCell);
+
+    state.grid.at(nextNextMove) = FLOOR;
+    state.grid.at(state.player) = PLAYER;
+    state.grid.at(current) = FLOOR;
+
+    EXPECT_EQ(FLOOR, state.grid.at(nextNextMove));
+    EXPECT_EQ(PLAYER, state.grid.at(current + Position(RIGHT)));
+    EXPECT_EQ(FLOOR, state.grid.at(current));
+}
