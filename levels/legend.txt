@@ -1,6 +1,6 @@
-1 Red (1st) lever
-2 Green (2nd) lever
-3 Blue (3rd) lever
+1 1st lever
+2 2nd lever
+3 3rd lever
 4 4th lever
 5 5th lever
 6 6th lever
