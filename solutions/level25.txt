@@ -1,0 +1,2 @@
+Runtime: 0.039000000 s
+Solution: druullddl
