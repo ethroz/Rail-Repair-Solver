@@ -25,10 +25,8 @@ D Down/Right box wall
 
 # Wall
 * Hole
-. Filled hole
   Floor
 @ Player
 1234567890 Input Tracks and Levers
-!WE$%^&I() Pulled levers
 hvlurd Boxes
 HVLURD Box Walls

@@ -92,7 +92,6 @@ const static std::unordered_map<CellDescriptor, Cell> LEGEND = {
     {{'#', false}, WALL},
     {{'#', true }, WALL},
     {{'*', false}, HOLE},
-    {{'.', false}, FLOOR},
     {{' ', false}, FLOOR},
     {{'1', false}, LEVER1_OFF},
     {{'2', false}, LEVER2_OFF},
