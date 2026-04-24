@@ -28,13 +28,13 @@ void writeSolutionFile(
     const std::filesystem::path solutionsDir = repoPath / "solutions";
     std::filesystem::create_directories(solutionsDir);
 
-    const auto runtimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(runtime).count();
+    const auto runtimeSeconds = std::chrono::duration<double>(runtime).count();
     std::ofstream file(solutionsDir / std::format("level{}.txt", level), std::ios::out | std::ios::trunc | std::ios::binary);
     if (!file) {
         throw std::runtime_error("Unable to create solution output file");
     }
 
-    file << std::format("Runtime: {} ms\n", runtimeMs);
+    file << std::format("Runtime: {:.9f} s\n", runtimeSeconds);
     file << std::format("Solution: {}\n", solution.empty() ? "No solution found" : solution);
 }
 
