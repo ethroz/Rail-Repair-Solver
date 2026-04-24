@@ -34,8 +34,8 @@ void writeSolutionFile(
         throw std::runtime_error("Unable to create solution output file");
     }
 
-    file << std::format("Runtime: {:.9f} s\n", runtimeSeconds);
-    file << std::format("Solution: {}\n", solution.empty() ? "No solution found" : solution);
+    file << std::format("Runtime: {:.9f} s", runtimeSeconds) << std::endl;
+    file << std::format("Solution: {}", solution.empty() ? "No solution found" : solution) << std::endl;
 }
 
 bool solveLevel(const std::string& levelStr) {
