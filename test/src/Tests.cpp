@@ -8,7 +8,7 @@
 #include "Components.hpp"
 #include "CoordSystem.hpp"
 #include "GameLogic.hpp"
-#include "Queue.hpp"
+
 
 TEST(Tracks_NW) {
     const Cell c = MOVABLE_NW;
@@ -131,10 +131,10 @@ TEST(Tracks_V) {
 }
 
 TEST(DirToChar) {
-    EXPECT_EQ('u', toChar(UP));
-    EXPECT_EQ('r', toChar(RIGHT));
-    EXPECT_EQ('d', toChar(DOWN));
-    EXPECT_EQ('l', toChar(LEFT));
+    EXPECT_EQ('u', char(Direction(UP)));
+    EXPECT_EQ('r', char(Direction(RIGHT)));
+    EXPECT_EQ('d', char(Direction(DOWN)));
+    EXPECT_EQ('l', char(Direction(LEFT)));
 }
 
 TEST(Position) {
@@ -222,7 +222,7 @@ TEST(SimulateTrain_DoesNotExitWhenEdgeTrackTurnsBackIntoGrid) {
     EXPECT_FALSE(result);
 }
 
-TEST(SolutionSearch) {
+TEST(SolutionSearch_OneMoveLongTrack) {
     constexpr std::string_view level =
         "########\n"
         "1HHHHL@#\n"
@@ -239,6 +239,23 @@ TEST(SolutionSearch) {
     const auto solution = search(startList, state);
     ASSERT_EQ(1, solution.size());
     EXPECT_EQ(DOWN, solution[0]);
+}
+
+TEST(SolutionSearch_TwoMoves) {
+    constexpr std::string_view level =
+        "####\n"
+        "1 HH\n"
+        "#h1#\n"
+        "#@##\n"
+        "####\n";
+
+    const auto state = stateFromString(level);
+
+    const auto startList = createStartList(state);
+    const auto solution = search(startList, state);
+    ASSERT_EQ(2, solution.size());
+    EXPECT_EQ(UP, solution[0]);
+    EXPECT_EQ(RIGHT, solution[1]);
 }
 
 TEST(PushIntoHoleFillsHole) {

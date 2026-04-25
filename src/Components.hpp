@@ -74,7 +74,7 @@ static constexpr uint8_t Y_MAX = 10;
 
 struct Grid {
 public:
-    constexpr Grid() : m_data{} {}
+    constexpr Grid() = default;
 
     constexpr const Cell& at(Position p) const { return m_data[p.x][p.y]; }
     constexpr Cell& at(Position p) { return m_data[p.x][p.y]; }
@@ -82,7 +82,7 @@ public:
     constexpr Cell& at(int8_t x, int8_t y) { return m_data[x][y]; }
 
 private:
-    std::array<std::array<Cell, Y_MAX>, X_MAX> m_data;
+    std::array<std::array<Cell, Y_MAX>, X_MAX> m_data{};
 };
 
 static_assert(sizeof(Grid) == X_MAX * Y_MAX);
@@ -101,20 +101,20 @@ constexpr Direction trackToDirection(Cell c, Direction inDir) {
     switch (d) {
     case H:
     case V:
-        return (inDir % 2 == d - H) ? inDir : NONE;
+        return (inDir % 2 != d - H) ? inDir : NONE;
     case NW:
     case NE:
     case SE:
     case SW:
-        if (d == inDir) {
-            return Direction((inDir + (MAX_DIR - 1)) % MAX_DIR);
+        if (d == inDir - 1) {
+            return Direction(((inDir + MAX_DIR - 2) % MAX_DIR) + 1);
         }
-        else if ((d + 1) % MAX_DIR == inDir) {
-            return Direction((inDir + 1) % MAX_DIR);
+        else if ((d + 1) % MAX_DIR == inDir - 1) {
+            return Direction((inDir % MAX_DIR) + 1);
         }
         else {
             return NONE;
         }
-    default: throw std::invalid_argument(std::format("unexpected direction: {}", std::to_underlying(inDir)));
+    default: throw std::invalid_argument(std::format("Unexpected track type: {}", std::to_underlying(d)));
     }
 }

@@ -290,7 +290,7 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
     size_t count = 0;
 
     while (!queue.empty()) {
-        const auto current = queue.pop();
+        const State& currentState = queue.pop();
 
         count++;
         if (count % 1000000 == 0) {
@@ -301,15 +301,15 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
             }
         }
 
-        for (Direction dir = MIN_DIR; dir < MAX_DIR; dir = Direction(dir + 1)) {
-            State nextState = current;
-            nextState.player += Position(dir);
+        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = Direction(dir + 1)) {
+            State nextState = currentState;
+            nextState.player += dir;
             const auto nextCell = nextState.grid.at(nextState.player);
 
             assert(nextCell != PLAYER);
             if (nextCell.isMovable()) {
                 if (nextCell != FLOOR) {
-                    const auto nextNextMove = nextState.player + Position(dir);
+                    const auto nextNextMove = nextState.player + dir;
                     const auto nextNextCell = nextState.grid.at(nextNextMove);
                     if (!nextNextCell.isEmpty()) {
                         continue;
@@ -324,7 +324,7 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                 }
 
                 nextState.grid.at(nextState.player) = PLAYER;
-                nextState.grid.at(current.player) = FLOOR;
+                nextState.grid.at(currentState.player) = FLOOR;
             }
             else if (nextCell.isLever() && !nextCell.leverState() && simulateTrain(startList, nextState.grid, nextCell.index())) {
                 nextState.toggledLevers++;
@@ -338,7 +338,7 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                 }
 
                 nextState.grid.at(nextState.player).toggleLever();
-                nextState.player = current.player;
+                nextState.player = currentState.player;
             }
             else {
                 continue;

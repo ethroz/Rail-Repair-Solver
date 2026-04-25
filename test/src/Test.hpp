@@ -30,18 +30,21 @@ static std::vector<TestFixture*> tests;
 
 struct TestFixture {
 public:
-    TestFixture(std::string_view name) : func_name(name) {
+    TestFixture(std::string_view name) : m_name{name} {
         tests.push_back(this);
     }
 
-    [[nodiscard]] std::string_view name() const { return func_name; }
+    [[nodiscard]] std::string_view name() const { return m_name; }
     [[nodiscard]] bool passed() const { return !failed; }
+    [[nodiscard]] bool disabled() const { return m_disabled; }
+    void disable() { m_disabled = true; }
 
     virtual void runTest() = 0;
     
     bool failed = false;
-protected:
-    const std::string_view func_name;
+private:
+    bool m_disabled = false;
+    const std::string_view m_name;
 };
 
 template<typename T>
@@ -93,10 +96,34 @@ void Fixture_##x::runTest()
 
 // Main function.
 
-int main() {
-    std::cout << "Running All Tests\n" << std::endl;
-
+int main(int argc, char* argv[]) {
     rlutil::saveDefaultColor();
+
+    size_t numDisabled = 0;
+    for (int i = 1; i < argc; ++i) {
+        auto arg = std::string_view(argv[i]);
+        if (arg.starts_with("--filter=")) {
+            std::string_view testName = arg.substr(9);
+            for (auto& test : tests) {
+                if (test->name() != testName) {
+                    test->disable();
+                    ++numDisabled;
+                }
+            }
+            if (numDisabled == tests.size()) {
+                std::cerr << "Test does not exist: " << testName << std::endl;
+                return 1;
+            }
+        }
+        else {
+            std::cerr << "Unsupported command line argument: " << arg << std::endl;
+            return 1;
+        }
+    }
+
+    if (numDisabled == 0) {
+        std::cout << "Running All Tests\n" << std::endl;
+    }
 
     const auto pass = []() -> std::ostream & {
         const auto scope = ColorScope(rlutil::GREEN);
@@ -110,6 +137,10 @@ int main() {
 
     std::vector<std::string_view> failedTests;
     for (const auto& test : tests) {
+        if (test->disabled()) {
+            continue;
+        }
+
         std::cout << std::format("Running {}", test->name()) << std::endl;
 
         try {

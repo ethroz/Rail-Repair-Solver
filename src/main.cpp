@@ -57,7 +57,7 @@ bool solveLevel(const std::string& levelStr) {
         std::string sequence;
         sequence.reserve(solution.size());
         for (auto move : solution) {
-            sequence += toChar(move);
+            sequence += char(move);
         }
 
         writeSolutionFile(level, runtime, sequence);

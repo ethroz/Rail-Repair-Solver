@@ -19,6 +19,7 @@ add_executable(rail_repair_solver
 
 target_include_directories(rail_repair_solver PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
 )
 
 add_executable(rail_repair_solver_tests
