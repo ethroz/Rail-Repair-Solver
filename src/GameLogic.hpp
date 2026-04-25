@@ -14,7 +14,7 @@
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
-#include "Queue.hpp"
+#include "PriorityQueue.hpp"
 
 static uint8_t width = 0;
 static uint8_t height = 0;
@@ -251,15 +251,15 @@ std::vector<Direction> search(
     const std::atomic_bool& done = {}
 ) {
     absl::flat_hash_set<StateEncoding> visited(5000000);
-    Queue<State> queue(5000000);
+    PriorityQueue<State> queue(5000000);
 
-    queue.push(initialState);
+    queue.insert(initialState);
     visited.insert(initialState.encode());
 
     stats.iterations = 0;
 
     while (!queue.empty()) {
-        const State currentState = queue.pop();
+        const State currentState = queue.extract_min();
 
         stats.iterations++;
         if (stats.iterations % 1000000 == 0) {
@@ -316,7 +316,7 @@ std::vector<Direction> search(
             }
 
             nextState.moves.push_back(dir);
-            queue.push(std::move(nextState));
+            queue.insert(std::move(nextState));
         }
     }
 

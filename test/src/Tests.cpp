@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <functional>
 #include <regex>
 #include <string>
 #include <string_view>
@@ -8,7 +9,7 @@
 #include "Components.hpp"
 #include "CoordSystem.hpp"
 #include "GameLogic.hpp"
-
+#include "PriorityQueue.hpp"
 
 TEST(Tracks_NW) {
     const TrackType t = NW;
@@ -326,40 +327,46 @@ TEST(SolutionSearch_PushBlockOverHole) {
     EXPECT_EQ(RIGHT, solution[14]);
 }
 
-TEST(QueueLinearizeWrapped) {
-    Queue<int> queue(5);
-    queue.push(1);
-    queue.push(2);
-    queue.push(3);
-    queue.push(4);
-
-    EXPECT_EQ(1, queue.pop());
-    EXPECT_EQ(2, queue.pop());
-
-    queue.push(5);
-    queue.push(6);
-    queue.linearize();
-
-    ASSERT_EQ(3, queue.pop());
-    ASSERT_EQ(4, queue.pop());
-    ASSERT_EQ(5, queue.pop());
-    ASSERT_EQ(6, queue.pop());
+TEST(PriorityQueue_InsertExtractKeepsOrder) {
+    PriorityQueue<int> queue;
+    queue.insert(5);
+    queue.insert(1);
+    queue.insert(3);
+    EXPECT_EQ(1, queue.minimum());
+    EXPECT_EQ(1, queue.extract_min());
+    EXPECT_EQ(3, queue.extract_min());
+    EXPECT_EQ(5, queue.extract_min());
     EXPECT_TRUE(queue.empty());
 }
 
-TEST(QueueLinearizeOffsetContiguous) {
-    Queue<int> queue(6);
-    queue.push(1);
-    queue.push(2);
-    queue.push(3);
-    queue.push(4);
+TEST(PriorityQueue_ClearAndEmpty) {
+    PriorityQueue<int> queue;
+    queue.insert(42);
+    queue.insert(7);
+    EXPECT_FALSE(queue.empty());
+    queue.clear();
+    EXPECT_TRUE(queue.empty());
+}
 
-    EXPECT_EQ(1, queue.pop());
-    EXPECT_EQ(2, queue.pop());
+TEST(PriorityQueue_ThrowsOnEmpty) {
+    PriorityQueue<int> queue;
+    bool caughtMinimum = false;
+    bool caughtExtract = false;
 
-    queue.linearize();
+    EXPECT_THROW(queue.minimum(), std::runtime_error);
+    EXPECT_THROW(queue.extract_min(), std::runtime_error);
+}
 
-    ASSERT_EQ(3, queue.pop());
-    ASSERT_EQ(4, queue.pop());
+TEST(PriorityQueue_CustomComparator) {
+    PriorityQueue<int, std::greater<int>> queue;
+    queue.insert(2);
+    queue.insert(7);
+    queue.insert(4);
+    EXPECT_EQ(7, queue.minimum());
+    EXPECT_EQ(7, queue.extract_min());
+    EXPECT_EQ(4, queue.minimum());
+    EXPECT_EQ(4, queue.extract_min());
+    EXPECT_EQ(2, queue.minimum());
+    EXPECT_EQ(2, queue.extract_min());
     EXPECT_TRUE(queue.empty());
 }

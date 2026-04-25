@@ -150,6 +150,8 @@ public:
 
         return encoding;
     }
+
+    friend constexpr bool operator<(const State& a, const State& b) { return a.moves.size() < b.moves.size(); }
 };
 
 struct Grid {
