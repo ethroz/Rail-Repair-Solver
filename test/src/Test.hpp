@@ -89,6 +89,7 @@ void Fixture_##x::runTest()
 #define ASSERT_TRUE(x) if (!x) { failed = true; throw TestException(std::format("Failed assert on line {}\n{} is false", __LINE__, toString(x))); }
 #define ASSERT_FALSE(x) if (x) { failed = true; throw TestException(std::format("Failed assert on line {}\n{} is true", __LINE__, toString(x))); }
 #define FAIL() if (true) { failed = true; throw TestException(std::format("Test failed on line {}", __LINE__)); }
+#define EXPECT_THROW(x, ex) try { (void)x; failed = true; std::cerr << std::format("Failed expect on line {}\n{} did not throw {}", __LINE__, #x, #ex) << std::endl; } catch (const ex&) {}
 
 // Main function.
 
