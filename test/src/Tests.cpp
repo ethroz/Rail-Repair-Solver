@@ -8,6 +8,7 @@
 #include "Components.hpp"
 #include "CoordSystem.hpp"
 #include "GameLogic.hpp"
+#include "StableQueue.hpp"
 
 
 TEST(Tracks_NW) {
@@ -326,40 +327,60 @@ TEST(SolutionSearch_PushBlockOverHole) {
     EXPECT_EQ(RIGHT, solution[14]);
 }
 
-TEST(QueueLinearizeWrapped) {
-    Queue<int> queue(5);
+TEST(StableQueue_Empty) {
+    StableQueue<int> queue;
+    EXPECT_TRUE(queue.empty());
+    EXPECT_EQ(0, queue.size());
+}
+
+TEST(StableQueue_PushPop) {
+    StableQueue<int> queue;
     queue.push(1);
     queue.push(2);
     queue.push(3);
-    queue.push(4);
 
-    EXPECT_EQ(1, queue.pop());
-    EXPECT_EQ(2, queue.pop());
+    EXPECT_FALSE(queue.empty());
+    EXPECT_EQ(3, queue.size());
 
-    queue.push(5);
-    queue.push(6);
-    queue.linearize();
+    const auto p1 = queue.peek();
+    EXPECT_EQ(1, p1);
+    const auto val1 = queue.pop();
+    EXPECT_EQ(1, val1);
+    EXPECT_EQ(2, queue.size());
 
-    ASSERT_EQ(3, queue.pop());
-    ASSERT_EQ(4, queue.pop());
-    ASSERT_EQ(5, queue.pop());
-    ASSERT_EQ(6, queue.pop());
+    const auto p2 = queue.peek();
+    EXPECT_EQ(2, p2);
+    const auto val2 = queue.pop();
+    EXPECT_EQ(2, val2);
+    EXPECT_EQ(1, queue.size());
+
+    const auto p3 = queue.peek();
+    EXPECT_EQ(3, p3);
+    const auto val3 = queue.pop();
+    EXPECT_EQ(3, val3);
+    EXPECT_EQ(0, queue.size());
     EXPECT_TRUE(queue.empty());
 }
 
-TEST(QueueLinearizeOffsetContiguous) {
-    Queue<int> queue(6);
+TEST(StableQueue_Clear) {
+    StableQueue<int> queue;
     queue.push(1);
     queue.push(2);
-    queue.push(3);
-    queue.push(4);
+    EXPECT_EQ(2, queue.size());
 
-    EXPECT_EQ(1, queue.pop());
-    EXPECT_EQ(2, queue.pop());
-
-    queue.linearize();
-
-    ASSERT_EQ(3, queue.pop());
-    ASSERT_EQ(4, queue.pop());
+    queue.clear();
     EXPECT_TRUE(queue.empty());
+    EXPECT_EQ(0, queue.size());
+}
+
+TEST(StableQueue_Exceptions) {
+    StableQueue<int> queue;
+
+    EXPECT_THROW(queue.peek(), std::runtime_error);
+    EXPECT_THROW(queue.pop(), std::runtime_error);
+
+    queue.push(1);
+    (void)queue.pop(); // now empty
+    EXPECT_THROW(queue.peek(), std::runtime_error);
+    EXPECT_THROW(queue.pop(), std::runtime_error);
 }

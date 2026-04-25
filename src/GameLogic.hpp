@@ -14,7 +14,7 @@
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
-#include "Queue.hpp"
+#include "StableQueue.hpp"
 
 static uint8_t width = 0;
 static uint8_t height = 0;
@@ -244,6 +244,31 @@ bool simulateTrain(
     return false;
 }
 
+std::vector<Direction> buildSolution(const Grid& grid, const State& lastState) {
+    std::vector<Direction> solution;
+    
+    const State* currentState = &lastState;
+    while (currentState->prev != nullptr) {
+        const State* prevState = currentState->prev;
+        Direction stepDir = Position::diffStep(prevState->player, currentState->player);
+        if (stepDir == NONE) {
+            assert(currentState->numToggledLevers() - prevState->numToggledLevers() > 0);
+            for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+                if (grid.at(*prevState, currentState->player + dir).cell.isLever()) {
+                    stepDir = dir;
+                    break;
+                }
+            }
+            assert(stepDir != NONE);
+        }
+        solution.push_back(stepDir);
+        currentState = prevState;
+    }
+
+    std::reverse(solution.begin(), solution.end());
+    return solution;
+}
+
 std::vector<Direction> search(
     const Grid& grid,
     const StartList& startList,
@@ -251,7 +276,7 @@ std::vector<Direction> search(
     const std::atomic_bool& done = {}
 ) {
     absl::flat_hash_set<StateEncoding> visited(5000000);
-    Queue<State> queue(5000000);
+    StableQueue<State> queue(5000000);
 
     queue.push(initialState);
     visited.insert(initialState.encode());
@@ -259,7 +284,7 @@ std::vector<Direction> search(
     stats.iterations = 0;
 
     while (!queue.empty()) {
-        const State currentState = queue.pop();
+        const State& currentState = queue.pop();
 
         stats.iterations++;
         if (stats.iterations % 1000000 == 0) {
@@ -272,6 +297,7 @@ std::vector<Direction> search(
 
         for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
             State nextState = currentState;
+            nextState.prev = &currentState;
             const auto nextMove = nextState.player + dir;
             const auto [nextCell, nextObjIndex] = grid.at(nextState, nextMove);
 
@@ -301,10 +327,10 @@ std::vector<Direction> search(
                 nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {
-                    nextState.moves.push_back(dir);
+                    auto solution = buildSolution(grid, nextState);
 
                     stats.visited = visited.size();
-                    return nextState.moves;
+                    return solution;
                 }
             }
             else {
@@ -315,7 +341,6 @@ std::vector<Direction> search(
                 continue;
             }
 
-            nextState.moves.push_back(dir);
             queue.push(std::move(nextState));
         }
     }

@@ -85,7 +85,7 @@ public:
 private:
     uint8_t leverBits = 0;
 public:
-    std::vector<Direction> moves{};
+    const State* prev = nullptr;
 
     constexpr bool leverToggled(uint8_t index) const {
         assert(index < MAX_LEVERS);
