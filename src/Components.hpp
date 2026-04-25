@@ -5,9 +5,9 @@
 #include <cassert>
 #include <cstdint>
 #include <format>
+#include <limits>
 #include <stdexcept>
 #include <utility>
-#include <vector>
 
 #include "CoordSystem.hpp"
 
@@ -76,6 +76,7 @@ private:
 static constexpr uint8_t ENCODING_BYTES = 10;
 using StateEncoding = std::array<uint8_t, ENCODING_BYTES>;
 
+static constexpr size_t NO_INDEX = std::numeric_limits<size_t>::max();
 struct State {
 public:
     std::array<Cell, MAX_OBJECTS> objects = {};
@@ -85,7 +86,7 @@ public:
 private:
     uint8_t leverBits = 0;
 public:
-    const State* prev = nullptr;
+    size_t prevIndex = NO_INDEX;
 
     constexpr bool leverToggled(uint8_t index) const {
         assert(index < MAX_LEVERS);

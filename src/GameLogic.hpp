@@ -244,12 +244,16 @@ bool simulateTrain(
     return false;
 }
 
-std::vector<Direction> buildSolution(const Grid& grid, const State& lastState) {
+std::vector<Direction> buildSolution(
+    const Grid& grid,
+    const StableQueue<State>& queue,
+    const State& lastState
+) {
     std::vector<Direction> solution;
     
     const State* currentState = &lastState;
-    while (currentState->prev != nullptr) {
-        const State* prevState = currentState->prev;
+    while (currentState->prevIndex != NO_INDEX) {
+        const State* prevState = &queue.at(currentState->prevIndex);
         Direction stepDir = Position::diffStep(prevState->player, currentState->player);
         if (stepDir == NONE) {
             assert(currentState->numToggledLevers() - prevState->numToggledLevers() > 0);
@@ -284,7 +288,8 @@ std::vector<Direction> search(
     stats.iterations = 0;
 
     while (!queue.empty()) {
-        const State& currentState = queue.pop();
+        const size_t index = queue.index();
+        const State currentState = queue.pop();
 
         stats.iterations++;
         if (stats.iterations % 1000000 == 0) {
@@ -297,7 +302,7 @@ std::vector<Direction> search(
 
         for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
             State nextState = currentState;
-            nextState.prev = &currentState;
+            nextState.prevIndex = index;
             const auto nextMove = nextState.player + dir;
             const auto [nextCell, nextObjIndex] = grid.at(nextState, nextMove);
 
@@ -327,7 +332,7 @@ std::vector<Direction> search(
                 nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {
-                    auto solution = buildSolution(grid, nextState);
+                    auto solution = buildSolution(grid, queue, nextState);
 
                     stats.visited = visited.size();
                     return solution;
