@@ -86,9 +86,11 @@ static Fixture_##x fix_##x(#x); \
 void Fixture_##x::runTest()
 
 #define EXPECT_EQ(x, y) if (x != y) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' != '{}'\n{} != {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_NE(x, y) if (x == y) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' == '{}'\n{} == {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
 #define EXPECT_TRUE(x) if (!x) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' is false", __FILE__, __LINE__, #x) << std::endl; }
 #define EXPECT_FALSE(x) if (x) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' is true", __FILE__, __LINE__, #x) << std::endl; }
 #define ASSERT_EQ(x, y) if (x != y) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' != '{}'\n{} != {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_NE(x, y) if (x == y) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' == '{}'\n{} == {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
 #define ASSERT_TRUE(x) if (!x) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' is false", __FILE__, __LINE__, #x)); }
 #define ASSERT_FALSE(x) if (x) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' is true", __FILE__, __LINE__, #x)); }
 #define FAIL() if (true) { failed = true; throw TestException(std::format("Failed at {}:{}", __FILE__, __LINE__)); }
