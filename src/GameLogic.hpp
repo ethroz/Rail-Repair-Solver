@@ -280,7 +280,7 @@ bool simulateTrain(const StartList& startList, const Grid& grid, uint8_t index) 
     return false;
 }
 
-std::vector<Direction> search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
+MoveList search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
     std::unordered_set<Grid> visited(3000000);
     Queue<State> queue(5000000);
 

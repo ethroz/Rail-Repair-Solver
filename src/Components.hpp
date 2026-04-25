@@ -5,9 +5,9 @@
 #include <format>
 #include <stdexcept>
 #include <utility>
-#include <vector>
 
 #include "CoordSystem.hpp"
+#include "MoveList.hpp"
 
 constexpr uint8_t IMMOVABLE = 0b10000000;
 constexpr uint8_t TRACK = 0b01000000;
@@ -93,7 +93,7 @@ struct State {
     Grid grid{};
     Position player{};
     uint8_t toggledLevers = 0;
-    std::vector<Direction> moves{};
+    MoveList moves{};
 };
 
 constexpr Direction trackToDirection(Cell c, Direction inDir) {
