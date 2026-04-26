@@ -98,10 +98,17 @@ private:
         const size_t oldCapacity = m_data.capacity();
 
         pendingPrevIndex = pruneDeadNodes(pendingPrevIndex);
+        
+        const size_t freeSlots = m_data.capacity() - m_data.size();
+        const size_t minFreeSlots = std::max<size_t>(8, m_data.capacity() / 4);
+        
+        const size_t newCapacity = std::max<size_t>(
+            oldCapacity * 21 / 13,
+            m_data.size() + minFreeSlots
+        );
 
 #ifdef VERBOSE_LOGS
         const size_t newSize = m_data.size();
-        const size_t newCapacity = m_data.capacity();
         const size_t removed = oldSize - newSize;
         const size_t reclaimedSlots = newCapacity - newSize;
 
@@ -121,9 +128,6 @@ private:
             << '\n';
 #endif
 
-        const size_t freeSlots = m_data.capacity() - m_data.size();
-        const size_t minFreeSlots = std::max<size_t>(8, m_data.capacity() / 4);
-
         if (freeSlots >= minFreeSlots) {
 #ifdef VERBOSE_LOGS
             std::cout << "StableQueue prune avoided reserve\n";
@@ -135,12 +139,7 @@ private:
         std::cout << "StableQueue prune insufficient; reserving more capacity\n";
 #endif
 
-        const size_t newReservedCapacity = std::max<size_t>(
-            oldCapacity * 2,
-            m_data.size() + minFreeSlots
-        );
-
-        m_data.reserve(newReservedCapacity);
+        m_data.reserve(newCapacity);
 
         return pendingPrevIndex;
     }
