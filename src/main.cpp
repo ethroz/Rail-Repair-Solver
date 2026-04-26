@@ -35,6 +35,7 @@ void writeSolutionFile(
     }
 
     file << std::format("Runtime: {:.9f} s", runtimeSeconds) << std::endl;
+    printStats(file);
     file << std::format("Solution: {}", solution.empty() ? "No solution found" : solution) << std::endl;
 }
 
@@ -47,6 +48,7 @@ bool solveLevel(const std::string& levelStr) {
 
     const auto startTime = std::chrono::steady_clock::now();
     const auto solution = search(startList, initialState, done);
+    printStats(std::cout);
     const auto runtime = std::chrono::steady_clock::now() - startTime;
     if (solution.empty()) {
         writeSolutionFile(level, runtime, "");

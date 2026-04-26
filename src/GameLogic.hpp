@@ -20,6 +20,15 @@ static uint8_t height = 0;
 static uint8_t movableSpaces = 0;
 constexpr size_t numBits = sizeof(size_t) * 8;
 static_assert(numBits == 64);
+static struct Stats {
+    size_t iterations;
+    size_t visited;
+} stats;
+
+static void printStats(std::ostream& out) {
+    out << "Total iterations: " << stats.iterations << std::endl;
+    out << "visited size: " << stats.visited << std::endl;
+}
 
 struct CellDescriptor {
     char character;
@@ -287,14 +296,14 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
     queue.push(initialState);
     visited.insert(initialState.grid);
 
-    size_t count = 0;
+    stats.iterations = 0;
 
     while (!queue.empty()) {
-        const State& currentState = queue.pop();
+        const State currentState = queue.pop();
 
-        count++;
-        if (count % 1000000 == 0) {
-            std::cout << std::format("States checked: {}\r", count);
+        stats.iterations++;
+        if (stats.iterations % 1000000 == 0) {
+            std::cout << std::format("States checked: {}\r", stats.iterations);
             std::cout.flush();
             if (done) {
                 break;
@@ -332,8 +341,7 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
                 if (nextState.toggledLevers == startList.size()) {
                     nextState.moves.push_back(dir);
 
-                    std::cout << "Total iterations: " << count << std::endl;
-                    std::cout << "visited size: " << visited.size() << std::endl;
+                    stats.visited = visited.size();
                     return nextState.moves;
                 }
 
@@ -355,5 +363,6 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
         }
     }
 
+    stats.visited = visited.size();
     return {};
 }
