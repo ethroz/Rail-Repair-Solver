@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-
 project(RailRepairSolver LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(MSVC)
     add_compile_options(/W3 /permissive-)
@@ -13,23 +8,25 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-add_executable(rail_repair_solver
-    src/main.cpp
-)
+find_package(absl REQUIRED)
 
+add_executable(rail_repair_solver src/main.cpp)
 target_include_directories(rail_repair_solver PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
 )
-
-add_executable(rail_repair_solver_tests
-    test/src/Tests.cpp
+target_link_libraries(rail_repair_solver PRIVATE
+    abseil::abseil
 )
 
+add_executable(rail_repair_solver_tests test/src/Tests.cpp)
 target_include_directories(rail_repair_solver_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/test/src
     ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
+)
+target_link_libraries(rail_repair_solver_tests PRIVATE
+    abseil::abseil
 )
 
 enable_testing()

@@ -9,7 +9,8 @@
 #include <iostream>
 #include <map>
 #include <queue>
-#include <unordered_set>
+
+#include <absl/container/flat_hash_set.h>
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
@@ -249,7 +250,7 @@ std::vector<Direction> search(
     const State& initialState,
     const std::atomic_bool& done = {}
 ) {
-    std::unordered_set<StateEncoding> visited(5000000);
+    absl::flat_hash_set<StateEncoding> visited(5000000);
     Queue<State> queue(5000000);
 
     queue.push(initialState);
