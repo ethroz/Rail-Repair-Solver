@@ -225,19 +225,17 @@ TEST(SimulateTrain_DoesNotExitWhenEdgeTrackTurnsBackIntoGrid) {
 }
 
 TEST(StateEncoding) {
-    State state1;
+    State state1{};
     state1.objects[0] = MOVABLE_H;
     state1.objectPositions[0] = {2, 1};
-    state1.objectCount = 1;
     state1.player = {1, 1};
-    State state2;
+    State state2{};
     state2.objects[0] = MOVABLE_H;
     state2.objectPositions[0] = {1, 1};
-    state2.objectCount = 1;
     state2.player = {2, 1};
 
-    StateEncoding encoding1 = state1.encode();
-    StateEncoding encoding2 = state2.encode();
+    StateEncoding encoding1 = state1.encode(1);
+    StateEncoding encoding2 = state2.encode(1);
     EXPECT_NE(encoding1, encoding2);
 }
 

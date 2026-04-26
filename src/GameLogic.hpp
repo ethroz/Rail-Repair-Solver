@@ -89,6 +89,7 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
 
     Position pos;
     uint8_t numLevers = 0;
+    uint8_t objectCount = 0;
     for (size_t i = 0; i < board.size(); i++) {
         const char character = board[i];
         if (character == '\n') {
@@ -117,9 +118,9 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
 
         if (cell.isMovable()) {
             if (cell.isTrack()) {
-                state.objects[state.objectCount] = cell;
-                state.objectPositions[state.objectCount] = pos;
-                ++state.objectCount;
+                state.objects[objectCount] = cell;
+                state.objectPositions[objectCount] = pos;
+                ++objectCount;
             }
             grid.at(pos) = FLOOR;
         }
@@ -143,6 +144,7 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
 
         pos.x(pos.x() + 1);
     }
+    grid.objectCount(objectCount);
 
     if (state.player == Position()) {
         throw std::invalid_argument("Missing a player");
@@ -150,8 +152,8 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
     if (numLevers > MAX_LEVERS || numLevers == 0) {
         throw std::invalid_argument(std::format("Invalid number of levers: {}", numLevers));
     }
-    if (state.objectCount > MAX_OBJECTS) {
-        throw std::invalid_argument(std::format("Invalid number of objects: {}", state.objectCount));
+    if (objectCount > MAX_OBJECTS) {
+        throw std::invalid_argument(std::format("Invalid number of objects: {}", objectCount));
     }
 
     return { grid, state };
@@ -254,7 +256,7 @@ std::vector<Direction> search(
     PriorityQueue<State> queue(5000000);
 
     queue.insert(initialState);
-    visited.insert(initialState.encode());
+    visited.insert(initialState.encode(grid.objectCount()));
 
     stats.iterations = 0;
 
@@ -272,6 +274,7 @@ std::vector<Direction> search(
 
         for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
             State nextState = currentState;
+            ++nextState.rank;
             const auto nextMove = nextState.player + dir;
             const auto [nextCell, nextObjIndex] = grid.at(nextState, nextMove);
 
@@ -311,12 +314,10 @@ std::vector<Direction> search(
                 continue;
             }
 
-            if (!visited.insert(nextState.encode()).second) {
-                continue;
+            if (visited.insert(nextState.encode(grid.objectCount())).second) {
+                nextState.moves.push_back(dir);
+                queue.insert(std::move(nextState));
             }
-
-            nextState.moves.push_back(dir);
-            queue.insert(std::move(nextState));
         }
     }
 

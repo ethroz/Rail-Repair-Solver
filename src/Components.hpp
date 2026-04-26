@@ -80,7 +80,7 @@ struct State {
 public:
     std::array<Cell, MAX_OBJECTS> objects = {};
     std::array<Position, MAX_OBJECTS> objectPositions = {};
-    uint8_t objectCount = 0;
+    uint16_t rank = 0;
     Position player = {};
 private:
     uint8_t leverBits = 0;
@@ -101,7 +101,7 @@ public:
         return std::popcount(leverBits);
     }
 
-    constexpr StateEncoding encode() const {
+    constexpr StateEncoding encode(uint8_t objectCount) const {
         StateEncoding encoding{};
 
         constexpr uint8_t X_RANGE = X_MAX - 2;
@@ -150,8 +150,7 @@ public:
 
         return encoding;
     }
-
-    friend constexpr bool operator<(const State& a, const State& b) { return a.moves.size() < b.moves.size(); }
+    friend constexpr bool operator<(const State& a, const State& b) { return a.rank < b.rank; }
 };
 
 struct Grid {
@@ -159,7 +158,7 @@ public:
     constexpr Grid() = default;
 
     constexpr struct { Cell cell; uint8_t index; } at(const State& state, Position p) const {
-        for (uint8_t i = 0; i < state.objectCount; ++i) {
+        for (uint8_t i = 0; i < m_objectCount; ++i) {
             if (state.objects[i] == FLOOR) {
                 continue;
             }
@@ -167,7 +166,7 @@ public:
                 return {state.objects[i], i};
             }
         }
-        for (uint8_t i = 0; i < state.objectCount; ++i) {
+        for (uint8_t i = 0; i < m_objectCount; ++i) {
             if (state.objects[i] != FLOOR) {
                 continue;
             }
@@ -181,6 +180,9 @@ public:
         return {at(p), 0xFF};
     }
 
+    constexpr uint8_t objectCount() const { return m_objectCount; }
+    constexpr void objectCount(uint8_t c) { m_objectCount = c; }
+
     constexpr const Cell& at(Position p) const { return m_data[p.x()][p.y()]; }
     constexpr Cell& at(Position p) { return m_data[p.x()][p.y()]; }
     constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[x][y]; }
@@ -188,6 +190,5 @@ public:
 
 private:
     std::array<std::array<Cell, Y_MAX>, X_MAX> m_data{};
+    uint8_t m_objectCount = 0;
 };
-
-bool operator==(const Grid& a, const Grid& b) { return memcmp(&a, &b, sizeof(a)) == 0; }
