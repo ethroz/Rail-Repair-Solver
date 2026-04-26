@@ -295,7 +295,7 @@ std::vector<Direction> search(
             else if (nextCell.isLever() &&
             !nextState.leverToggled(nextCell.index()) &&
             simulateTrain(grid, startList, nextState, nextCell.index())) {
-                nextState.toggleLevel(nextCell.index());
+                nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {
                     nextState.moves.push_back(dir);

@@ -113,7 +113,7 @@ public:
         return ((leverBits >> index) & 1) > 0;
     }
 
-    constexpr void toggleLevel(uint8_t index) {
+    constexpr void toggleLever(uint8_t index) {
         assert(index < MAX_LEVERS);
         leverBits ^= 1 << index;
     }
