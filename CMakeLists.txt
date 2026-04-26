@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(RailRepairSolver LANGUAGES CXX)
+project(rail_repair_solver LANGUAGES CXX)
 
 if(MSVC)
     add_compile_options(/W3 /permissive-)
