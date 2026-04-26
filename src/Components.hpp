@@ -149,6 +149,15 @@ public:
     }
 };
 
+#ifdef NDEBUG
+struct DeadState {
+    Position player = {};
+
+    constexpr DeadState() = default;
+
+    constexpr DeadState(const State& state) : player{state.player} {}
+};
+#else
 struct DeadState {
     Position player = {};
     uint8_t leverBits = 0;
@@ -171,6 +180,7 @@ struct DeadState {
         return std::popcount(leverBits);
     }
 };
+#endif
 
 static_assert(std::constructible_from<DeadState, State>);
 
