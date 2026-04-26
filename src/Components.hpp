@@ -76,27 +76,6 @@ private:
 static constexpr uint8_t ENCODING_BYTES = 10;
 using StateEncoding = std::array<uint8_t, ENCODING_BYTES>;
 
-template<>
-struct std::hash<StateEncoding> {
-    size_t operator()(const StateEncoding& data) const noexcept {
-        uint64_t lo;
-        uint16_t hi;
-
-        std::memcpy(&lo, data.data(), 8);
-        std::memcpy(&hi, data.data() + 8, 2);
-
-        uint64_t x = lo;
-        x ^= uint64_t(hi) * 0x9e3779b97f4a7c15ULL;
-
-        x ^= x >> 32;
-        x *= 0xd6e8feb86659fd93ULL;
-        x ^= x >> 32;
-        x *= 0xd6e8feb86659fd93ULL;
-        x ^= x >> 32;
-        return x;
-    }
-};
-
 struct State {
 public:
     std::array<Cell, MAX_OBJECTS> objects = {};

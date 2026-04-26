@@ -238,7 +238,6 @@ TEST(StateEncoding) {
     StateEncoding encoding1 = state1.encode();
     StateEncoding encoding2 = state2.encode();
     EXPECT_NE(encoding1, encoding2);
-    EXPECT_NE(std::hash<StateEncoding>{}(encoding1), std::hash<StateEncoding>{}(encoding2));
 }
 
 TEST(SolutionSearch_OneMoveLongTrack) {
