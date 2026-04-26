@@ -49,6 +49,9 @@ bool solveLevel(const std::string& levelStr) {
     const auto startTime = std::chrono::steady_clock::now();
     const auto solution = search(grid, startList, state, done);
     printStats(std::cout);
+    if (done) {
+        return false;
+    }
     const auto runtime = std::chrono::steady_clock::now() - startTime;
     if (solution.empty()) {
         writeSolutionFile(level, runtime, "");
