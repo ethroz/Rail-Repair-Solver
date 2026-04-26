@@ -1,4 +1,4 @@
-Runtime: 0.025326300 s
-Total iterations: 9735
-visited size: 9802
+Runtime: 0.039757100 s
+Total iterations: 20948
+visited size: 21512
 Solution: rdruuruuldldurrdldlruuldulururdddluluu
