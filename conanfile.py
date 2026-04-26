@@ -19,6 +19,12 @@ class rail_repair_solverRecipe(ConanFile):
     requires = [
         "abseil/20260107.1"
     ]
+    options = {
+        "verbose": [True, False]
+    }
+    default_options = {
+        "verbose": False,
+    }
 
     def export(self):
         raise ConanException("This recipe cannot be exported")
@@ -31,6 +37,7 @@ class rail_repair_solverRecipe(ConanFile):
         deps = CMakeDeps(self)
         deps.generate()
         tc = CMakeToolchain(self)
+        tc.cache_variables["VERBOSE_LOGS"] = self.options.verbose
         tc.generate()
 
     def build(self):

@@ -290,9 +290,6 @@ std::vector<Direction> search(
     stats.iterations = 0;
 
     while (!queue.empty()) {
-        const size_t index = queue.index();
-        const State currentState = queue.pop();
-
         stats.iterations++;
         if (stats.iterations % 1000000 == 0) {
             if (done) {
@@ -301,8 +298,11 @@ std::vector<Direction> search(
             std::cout << std::format("\rStates checked: {}. Queue size: {}. Visited cache: {}. ", stats.iterations, queue.size(), visited.size());
             std::cout.flush();
         }
-
+        
         for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+            const size_t index = queue.index();
+            const State& currentState = queue.peek();
+
             State nextState = currentState;
             const auto nextMove = nextState.player + dir;
             const auto [nextCell, nextObjIndex] = grid.at(nextState, nextMove);
@@ -350,6 +350,8 @@ std::vector<Direction> search(
 
             queue.push(std::move(nextState), index);
         }
+
+        queue.removeFront();
     }
 
     stats.visited = visited.size();
