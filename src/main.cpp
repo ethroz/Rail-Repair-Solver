@@ -43,11 +43,11 @@ bool solveLevel(const std::string& levelStr) {
     size_t level = std::stoll(levelStr);
     const std::filesystem::path levelPath = repoPath / "levels" / std::format("level{}.txt", level);
     const std::string fileContents = readFile(levelPath);
-    const auto initialState = stateFromString(fileContents);
-    StartList startList = createStartList(initialState);
+    const auto [grid, state] = stateFromString(fileContents);
+    StartList startList = createStartList(grid);
 
     const auto startTime = std::chrono::steady_clock::now();
-    const auto solution = search(startList, initialState, done);
+    const auto solution = search(grid, startList, state, done);
     printStats(std::cout);
     const auto runtime = std::chrono::steady_clock::now() - startTime;
     if (solution.empty()) {

@@ -11,121 +11,121 @@
 
 
 TEST(Tracks_NW) {
-    const Cell c = MOVABLE_NW;
+    const TrackType t = NW;
     {
-        const auto res = trackToDirection(c, UP);
+        const auto res = t.ride(UP);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, RIGHT);
+        const auto res = t.ride(RIGHT);
         EXPECT_EQ(UP, res);
     }
     {
-        const auto res = trackToDirection(c, DOWN);
+        const auto res = t.ride(DOWN);
         EXPECT_EQ(LEFT, res);
     }
     {
-        const auto res = trackToDirection(c, LEFT);
+        const auto res = t.ride(LEFT);
         EXPECT_EQ(NONE, res);
     }
 }
 
 TEST(Tracks_NE) {
-    const Cell c = MOVABLE_NE;
+    const TrackType t = NE;
     {
-        const auto res = trackToDirection(c, UP);
+        const auto res = t.ride(UP);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, RIGHT);
+        const auto res = t.ride(RIGHT);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, DOWN);
+        const auto res = t.ride(DOWN);
         EXPECT_EQ(RIGHT, res);
     }
     {
-        const auto res = trackToDirection(c, LEFT);
+        const auto res = t.ride(LEFT);
         EXPECT_EQ(UP, res);
     }
 }
 
 TEST(Tracks_SE) {
-    const Cell c = MOVABLE_SE;
+    const TrackType t = SE;
     {
-        const auto res = trackToDirection(c, UP);
+        const auto res = t.ride(UP);
         EXPECT_EQ(RIGHT, res);
     }
     {
-        const auto res = trackToDirection(c, RIGHT);
+        const auto res = t.ride(RIGHT);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, DOWN);
+        const auto res = t.ride(DOWN);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, LEFT);
+        const auto res = t.ride(LEFT);
         EXPECT_EQ(DOWN, res);
     }
 }
 
 TEST(Tracks_SW) {
-    const Cell c = MOVABLE_SW;
+    const TrackType t = SW;
     {
-        const auto res = trackToDirection(c, UP);
+        const auto res = t.ride(UP);
         EXPECT_EQ(LEFT, res);
     }
     {
-        const auto res = trackToDirection(c, RIGHT);
+        const auto res = t.ride(RIGHT);
         EXPECT_EQ(DOWN, res);
     }
     {
-        const auto res = trackToDirection(c, DOWN);
+        const auto res = t.ride(DOWN);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, LEFT);
+        const auto res = t.ride(LEFT);
         EXPECT_EQ(NONE, res);
     }
 }
 
 TEST(Tracks_H) {
-    const Cell c = MOVABLE_H;
+    const TrackType t = H;
     {
-        const auto res = trackToDirection(c, UP);
+        const auto res = t.ride(UP);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, RIGHT);
+        const auto res = t.ride(RIGHT);
         EXPECT_EQ(RIGHT, res);
     }
     {
-        const auto res = trackToDirection(c, DOWN);
+        const auto res = t.ride(DOWN);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, LEFT);
+        const auto res = t.ride(LEFT);
         EXPECT_EQ(LEFT, res);
     }
 }
 
 TEST(Tracks_V) {
-    const Cell c = MOVABLE_V;
+    const TrackType t = V;
     {
-        const auto res = trackToDirection(c, UP);
+        const auto res = t.ride(UP);
         EXPECT_EQ(UP, res);
     }
     {
-        const auto res = trackToDirection(c, RIGHT);
+        const auto res = t.ride(RIGHT);
         EXPECT_EQ(NONE, res);
     }
     {
-        const auto res = trackToDirection(c, DOWN);
+        const auto res = t.ride(DOWN);
         EXPECT_EQ(DOWN, res);
     }
     {
-        const auto res = trackToDirection(c, LEFT);
+        const auto res = t.ride(LEFT);
         EXPECT_EQ(NONE, res);
     }
 }
@@ -138,33 +138,34 @@ TEST(DirToChar) {
 }
 
 TEST(Position) {
+    Position p(1, 1);
     {
-        const Position actual(UP);
-        const Position expected(0, -1);
+        Position actual = p + UP;
+        Position expected(1, 0);
         EXPECT_EQ(expected, actual);
     }
 
     {
-        const Position actual(RIGHT);
-        const Position expected(1, 0);
+        Position actual = p + RIGHT;
+        Position expected(2, 1);
         EXPECT_EQ(expected, actual);
     }
 
     {
-        const Position actual(DOWN);
-        const Position expected(0, 1);
+        Position actual = p + DOWN;
+        Position expected(1, 2);
         EXPECT_EQ(expected, actual);
     }
 
     {
-        const Position actual(LEFT);
-        const Position expected(-1, 0);
+        Position actual = p + LEFT;
+        Position expected(0, 1);
         EXPECT_EQ(expected, actual);
     }
 
     {
-        const Position actual(NONE);
-        const Position expected(0, 0);
+        Position actual = p + NONE;
+        Position expected(1, 1);
         EXPECT_EQ(expected, actual);
     }
 }
@@ -201,10 +202,10 @@ TEST(SimulateTrain) {
         "#RHHHHU#\n"
         "########\n";
 
-    const auto state = stateFromString(level);
+    const auto [grid, state] = stateFromString(level);
 
-    const auto startList = createStartList(state);
-    const auto result = simulateTrain(startList, state.grid, 0);
+    const auto startList = createStartList(grid);
+    const auto result = simulateTrain(grid, startList, state, 0);
     EXPECT_TRUE(result);
 }
 
@@ -215,11 +216,29 @@ TEST(SimulateTrain_DoesNotExitWhenEdgeTrackTurnsBackIntoGrid) {
         "##1 #\n"
         "#####\n";
 
-    const auto state = stateFromString(level);
+    const auto [grid, state] = stateFromString(level);
 
-    const auto startList = createStartList(state);
-    const auto result = simulateTrain(startList, state.grid, 0);
+    const auto startList = createStartList(grid);
+    const auto result = simulateTrain(grid, startList, state, 0);
     EXPECT_FALSE(result);
+}
+
+TEST(StateEncoding) {
+    State state1;
+    state1.objects[0] = MOVABLE_H;
+    state1.objectPositions[0] = {2, 1};
+    state1.objectCount = 1;
+    state1.player = {1, 1};
+    State state2;
+    state2.objects[0] = MOVABLE_H;
+    state2.objectPositions[0] = {1, 1};
+    state2.objectCount = 1;
+    state2.player = {2, 1};
+
+    StateEncoding encoding1 = state1.encode();
+    StateEncoding encoding2 = state2.encode();
+    EXPECT_NE(encoding1, encoding2);
+    EXPECT_NE(std::hash<StateEncoding>{}(encoding1), std::hash<StateEncoding>{}(encoding2));
 }
 
 TEST(SolutionSearch_OneMoveLongTrack) {
@@ -233,10 +252,10 @@ TEST(SolutionSearch_OneMoveLongTrack) {
         "#RHHHHU#\n"
         "########\n";
 
-    const auto state = stateFromString(level);
+    const auto [grid, state] = stateFromString(level);
 
-    const auto startList = createStartList(state);
-    const auto solution = search(startList, state);
+    const auto startList = createStartList(grid);
+    const auto solution = search(grid, startList, state);
     ASSERT_EQ(1, solution.size());
     EXPECT_EQ(DOWN, solution[0]);
 }
@@ -249,39 +268,63 @@ TEST(SolutionSearch_TwoMoves) {
         "#@##\n"
         "####\n";
 
-    const auto state = stateFromString(level);
+    const auto [grid, state] = stateFromString(level);
 
-    const auto startList = createStartList(state);
-    const auto solution = search(startList, state);
+    const auto startList = createStartList(grid);
+    const auto solution = search(grid, startList, state);
     ASSERT_EQ(2, solution.size());
     EXPECT_EQ(UP, solution[0]);
     EXPECT_EQ(RIGHT, solution[1]);
 }
 
-TEST(PushIntoHoleFillsHole) {
+TEST(SolutionSearch_FillHole) {
     constexpr std::string_view level =
-        "######\n"
-        "# @h*#\n"
-        "# 1  #\n"
-        "1HHH #\n"
-        "######\n";
+        "####\n"
+        "#*1#\n"
+        "#hDH\n"
+        "#@V#\n"
+        "##1#\n";
 
-    auto state = stateFromString(level);
+    auto [grid, state] = stateFromString(level);
 
-    const auto current = state.player;
-    state.player += Position(RIGHT);
-    const auto nextNextMove = state.player + Position(RIGHT);
-    const auto nextNextCell = state.grid.at(nextNextMove);
+    const auto startList = createStartList(grid);
+    const auto solution = search(grid, startList, state);
+    ASSERT_EQ(3, solution.size());
+    EXPECT_EQ(UP, solution[0]);
+    EXPECT_EQ(UP, solution[1]);
+    EXPECT_EQ(RIGHT, solution[2]);
+}
 
-    ASSERT_EQ(HOLE, nextNextCell);
+TEST(SolutionSearch_PushBlockOverHole) {
+    constexpr std::string_view level =
+        "#####\n"
+        "1 HHH\n"
+        "#  1#\n"
+        "#*###\n"
+        "#hh #\n"
+        "#  @#\n"
+        "#####\n";
 
-    state.grid.at(nextNextMove) = FLOOR;
-    state.grid.at(state.player) = PLAYER;
-    state.grid.at(current) = FLOOR;
+    auto [grid, state] = stateFromString(level);
 
-    EXPECT_EQ(FLOOR, state.grid.at(nextNextMove));
-    EXPECT_EQ(PLAYER, state.grid.at(current + Position(RIGHT)));
-    EXPECT_EQ(FLOOR, state.grid.at(current));
+    const auto startList = createStartList(grid);
+    const auto solution = search(grid, startList, state);
+    ASSERT_EQ(15, solution.size());
+    EXPECT_EQ(LEFT, solution[0]);
+    EXPECT_EQ(LEFT, solution[1]);
+    EXPECT_EQ(UP, solution[2]);
+    EXPECT_EQ(DOWN, solution[3]);
+    EXPECT_EQ(RIGHT, solution[4]);
+    EXPECT_EQ(RIGHT, solution[5]);
+    EXPECT_EQ(UP, solution[6]);
+    EXPECT_EQ(LEFT, solution[7]);
+    EXPECT_EQ(DOWN, solution[8]);
+    EXPECT_EQ(LEFT, solution[9]);
+    EXPECT_EQ(UP, solution[10]);
+    EXPECT_EQ(UP, solution[11]);
+    EXPECT_EQ(UP, solution[12]);
+    EXPECT_EQ(RIGHT, solution[13]);
+    EXPECT_EQ(RIGHT, solution[14]);
 }
 
 TEST(QueueLinearizeWrapped) {

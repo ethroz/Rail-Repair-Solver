@@ -7,8 +7,8 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <queue>
-#include <unordered_map>
 #include <unordered_set>
 
 #include "Components.hpp"
@@ -17,9 +17,6 @@
 
 static uint8_t width = 0;
 static uint8_t height = 0;
-static uint8_t movableSpaces = 0;
-constexpr size_t numBits = sizeof(size_t) * 8;
-static_assert(numBits == 64);
 static struct Stats {
     size_t iterations;
     size_t visited;
@@ -30,81 +27,17 @@ static void printStats(std::ostream& out) {
     out << "visited size: " << stats.visited << std::endl;
 }
 
-struct CellDescriptor {
-    char character;
-    bool edge;
-};
+using CellDescriptor = std::pair<char, bool>;
 
-constexpr bool operator==(CellDescriptor a, CellDescriptor b) { return a.character == b.character && a.edge == b.edge; }
-
-template<>
-struct std::hash<CellDescriptor> {
-    size_t operator()(const CellDescriptor& cd) const noexcept {
-        size_t hash = size_t(cd.character);
-        hash |= size_t(cd.edge ? 1 : 0) << 8;
-        return hash;
-    }
-};
-
-struct CellPosition {
-    Cell cell;
-    uint8_t pos;
-};
-
-constexpr bool operator>(CellPosition a, CellPosition b) { return a.cell > b.cell; }
-
-template<>
-struct std::hash<Grid> {
-    size_t operator()(const Grid& grid) const noexcept {
-        size_t hash = 0;
-        std::array<bool, MAX_LEVERS> leverStates{};
-        std::priority_queue<CellPosition, std::vector<CellPosition>, std::greater<CellPosition>> objectQueue;
-        size_t factor = 1;
-        uint8_t remainingSpaces = movableSpaces;
-        uint8_t pos = 0;
-        uint8_t leverIndex = 0;
-
-        for (int8_t x = 1; x < width - 1; x++) {
-            for (int8_t y = 1; y < height - 1; y++) {
-                const auto cell = grid.at(x, y);
-                if (cell.isMovable()) {
-                    if (cell != FLOOR) {
-                        assert(objectQueue.size() < MAX_OBJECTS);
-                        objectQueue.push({ cell, pos });
-                    }
-                    pos++;
-                }
-                else if (cell.isLever()) {
-                    assert(leverIndex < MAX_LEVERS);
-                    leverStates[leverIndex++] = cell.leverState();
-                }
-            }
-        }
-
-        while (!objectQueue.empty()) {
-            const auto& cellPos = objectQueue.top();
-            hash += cellPos.pos * factor;
-            factor *= remainingSpaces--;
-            objectQueue.pop();
-        }
-
-        for (uint8_t i = 0; i < leverIndex; i++) {
-            hash |= size_t(leverStates[i] ? 1 : 0) << (numBits - 1 - i);
-        }
-
-        return hash;
-    }
-};
-
-const static std::unordered_map<CellDescriptor, Cell> LEGEND = {
+const static std::map<CellDescriptor, Cell> LEGEND = {
     {{'@', false}, PLAYER},
     {{'#', false}, WALL},
     {{'#', true }, WALL},
     {{'*', false}, HOLE},
     {{' ', false}, FLOOR},
-    {{'1', false}, LEVER1_OFF},
-    {{'2', false}, LEVER2_OFF},
-    {{'3', false}, LEVER3_OFF},
+    {{'1', false}, LEVER1},
+    {{'2', false}, LEVER2},
+    {{'3', false}, LEVER3},
     {{'1', true }, TRACK1},
     {{'2', true }, TRACK2},
     {{'3', true }, TRACK3},
@@ -138,7 +71,8 @@ std::string readFile(const std::filesystem::path& path) {
     return str.str();
 }
 
-State stateFromString(std::string_view board) {
+std::pair<Grid, State> stateFromString(std::string_view board) {
+    Grid grid;
     State state;
 
     size_t temp = board.find_first_of("\r\n");
@@ -154,17 +88,15 @@ State stateFromString(std::string_view board) {
 
     Position pos;
     uint8_t numLevers = 0;
-    uint8_t numObjects = 0;
-    movableSpaces = 0;
     for (size_t i = 0; i < board.size(); i++) {
         const char character = board[i];
         if (character == '\n') {
-            if (pos.x != width) {
+            if (pos.x() != width) {
                 throw std::invalid_argument("Inconsistent level widths");
             }
-            pos.x = 0;
-            pos.y++;
-            if (pos.y == height) {
+            pos.x(0);
+            pos.y(pos.y() + 1);
+            if (pos.y() == height) {
                 break;
             }
             else {
@@ -175,70 +107,89 @@ State stateFromString(std::string_view board) {
             continue;
         }
 
-        const bool top = pos.y == 0;
-        const bool right = pos.x == width - 1;
-        const bool bottom = pos.y == height - 1;
-        const bool left = pos.x == 0;
+        const bool top = pos.y() == 0;
+        const bool right = pos.x() == width - 1;
+        const bool bottom = pos.y() == height - 1;
+        const bool left = pos.x() == 0;
         const bool edge = top || bottom || left || right;
-        if (!LEGEND.contains({ character, edge })) {
-            throw std::invalid_argument(std::format("Unrecognized cell description: [{}, {}]", character, edge ? "edge" : "middle"));
-        }
-        const auto cell = LEGEND.at(CellDescriptor{ character, edge });
-        state.grid.at(pos) = cell;
+        const auto cell = LEGEND.at({character, edge});
 
         if (cell.isMovable()) {
-            if (cell != FLOOR) {
-                numObjects++;
+            if (cell.isTrack()) {
+                state.objects[state.objectCount] = cell;
+                state.objectPositions[state.objectCount] = pos;
+                ++state.objectCount;
             }
-            movableSpaces++;
+            grid.at(pos) = FLOOR;
+        }
+        else {
+            grid.at(pos) = cell;
         }
 
         if (cell.isLever()) {
             numLevers++;
         }
         else if (cell == PLAYER) {
-            assert(!edge);
-            if (state.player.x != 0) {
+            if (edge) {
+                throw std::invalid_argument("A player cannot be on the edge");
+            }
+            if (state.player.x() != 0) {
                 throw std::invalid_argument("Cannot have more than one player");
             }
 
             state.player = pos;
         }
 
-        pos.x++;
+        pos.x(pos.x() + 1);
     }
 
-    if (state.player.x == 0) {
+    if (state.player == Position()) {
         throw std::invalid_argument("Missing a player");
     }
     if (numLevers > MAX_LEVERS || numLevers == 0) {
         throw std::invalid_argument(std::format("Invalid number of levers: {}", numLevers));
     }
-    if (numObjects > MAX_OBJECTS) {
-        throw std::invalid_argument(std::format("Invalid number of objects: {}", numObjects));
+    if (state.objectCount > MAX_OBJECTS) {
+        throw std::invalid_argument(std::format("Invalid number of objects: {}", state.objectCount));
     }
 
-    size_t maxPossibilities = (size_t(1) << (numBits - numLevers)) - 1;
-    size_t hash = 1;
-    for (uint8_t i = 0; i < numObjects; i++) {
-        const auto factor = movableSpaces - i;
-        if (maxPossibilities / factor < hash) {
-            throw std::logic_error(std::format("Cannot store all the possible states in a hash of {} bits", numBits));
-        }
-        hash *= factor;
-    }
-
-    return state;
+    return { grid, state };
 }
 
-using StartList = std::unordered_map<uint8_t, std::pair<Position, Direction>>;
+struct Vector {
+    Position pos{};
+    Direction dir{};
+};
 
-StartList createStartList(const State& state) {
+struct StartList {
+    constexpr size_t size() const { return m_size; }
+
+    constexpr const Vector& at(uint8_t index) const {
+        if (m_data.at(index).dir == NONE) {
+            throw std::invalid_argument(std::format("Invalid railroad index: {}", index));
+        }
+        return m_data[index];
+    }
+
+    constexpr void insert(uint8_t index, Vector&& vec) {
+        if (m_data.at(index).dir != NONE) {
+            throw std::invalid_argument("Cannot have two starting railroads with the same index");
+        }
+        m_data[index] = std::move(vec);
+        m_size++;
+    }
+
+private:
+    std::array<Vector, MAX_LEVERS> m_data = {};
+    size_t m_size = 0;
+};
+
+StartList createStartList(const Grid& grid) {
     StartList list;
 
-    for (int8_t x = 0; x < width; x++) {
-        for (int8_t y = 0; y < height; y++) {
-            const auto cell = state.grid.at(x, y);
+    for (uint8_t x = 0; x < width; x++) {
+        for (uint8_t y = 0; y < height; y++) {
+            const auto cell = grid.at(x, y);
             if (cell.isStart()) {
                 Direction dir;
 
@@ -252,14 +203,10 @@ StartList createStartList(const State& state) {
                 case 0b0100: dir = LEFT;  break;
                 case 0b0010: dir = UP;    break;
                 case 0b0001: dir = RIGHT; break;
-                default: throw std::invalid_argument("Cannot have a starting railroad on a corner"); break;
+                default: throw std::invalid_argument("Cannot have a starting railroad on a corner");
                 }
 
-                if (list.contains(cell.index())) {
-                    throw std::invalid_argument("Cannot have two of the same starting railroads");
-                }
-
-                list.insert({ cell.index(), { { x, y }, dir } });
+                list.insert(cell.index(), {{x, y}, dir});
             }
         }
     }
@@ -267,34 +214,46 @@ StartList createStartList(const State& state) {
     return list;
 }
 
-bool simulateTrain(const StartList& startList, const Grid& grid, uint8_t index) {
+bool simulateTrain(
+    const Grid& grid,
+    const StartList& startList,
+    const State& state,
+    uint8_t index
+) {
     auto [pos, dir] = startList.at(index);
+    assert(dir != NONE);
+    assert(grid.at(state, pos).cell.isTrack());
     while (dir != NONE) {
-        if (!grid.at(pos).isTrack()) {
+        pos += dir;
+        const auto cell = grid.at(state, pos).cell;
+        if (!cell.isTrack()) {
             return false;
         }
+        dir = cell.trackType().ride(dir);
 
         const bool exitsGrid =
-            (pos.y == 0 && dir == UP) ||
-            (pos.x == width - 1 && dir == RIGHT) ||
-            (pos.y == height - 1 && dir == DOWN) ||
-            (pos.x == 0 && dir == LEFT);
+            (pos.y() == 0 && dir == UP) ||
+            (pos.x() == width - 1 && dir == RIGHT) ||
+            (pos.y() == height - 1 && dir == DOWN) ||
+            (pos.x() == 0 && dir == LEFT);
         if (exitsGrid) {
             return true;
         }
-
-        pos += dir;
-        dir = trackToDirection(grid.at(pos), dir);
     }
     return false;
 }
 
-std::vector<Direction> search(const StartList& startList, const State& initialState, const std::atomic_bool& done = {}) {
-    std::unordered_set<Grid> visited(3000000);
+std::vector<Direction> search(
+    const Grid& grid,
+    const StartList& startList,
+    const State& initialState,
+    const std::atomic_bool& done = {}
+) {
+    std::unordered_set<StateEncoding> visited(5000000);
     Queue<State> queue(5000000);
 
     queue.push(initialState);
-    visited.insert(initialState.grid);
+    visited.insert(initialState.encode());
 
     stats.iterations = 0;
 
@@ -310,53 +269,48 @@ std::vector<Direction> search(const StartList& startList, const State& initialSt
             }
         }
 
-        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = Direction(dir + 1)) {
+        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
             State nextState = currentState;
-            nextState.player += dir;
-            const auto nextCell = nextState.grid.at(nextState.player);
+            const auto nextMove = nextState.player + dir;
+            const auto [nextCell, nextObjIndex] = grid.at(nextState, nextMove);
 
             assert(nextCell != PLAYER);
             if (nextCell.isMovable()) {
                 if (nextCell != FLOOR) {
-                    const auto nextNextMove = nextState.player + dir;
-                    const auto nextNextCell = nextState.grid.at(nextNextMove);
+                    const auto nextNextMove = nextMove + dir;
+                    const auto [nextNextCell, _] = grid.at(nextState, nextNextMove);
                     if (!nextNextCell.isEmpty()) {
                         continue;
                     }
 
+                    assert(nextObjIndex < MAX_OBJECTS);
+                    nextState.objectPositions[nextObjIndex] += dir;
                     if (nextNextCell == HOLE) {
-                        nextState.grid.at(nextNextMove) = FLOOR;
-                    }
-                    else {
-                        nextState.grid.at(nextNextMove) = nextState.grid.at(nextState.player);
+                        nextState.objects[nextObjIndex] = FLOOR;
                     }
                 }
 
-                nextState.grid.at(nextState.player) = PLAYER;
-                nextState.grid.at(currentState.player) = FLOOR;
+                nextState.player = nextMove;
             }
-            else if (nextCell.isLever() && !nextCell.leverState() && simulateTrain(startList, nextState.grid, nextCell.index())) {
-                nextState.toggledLevers++;
+            else if (nextCell.isLever() &&
+            !nextState.leverToggled(nextCell.index()) &&
+            simulateTrain(grid, startList, nextState, nextCell.index())) {
+                nextState.toggleLevel(nextCell.index());
 
-                if (nextState.toggledLevers == startList.size()) {
+                if (nextState.numToggledLevers() == startList.size()) {
                     nextState.moves.push_back(dir);
 
                     stats.visited = visited.size();
                     return nextState.moves;
                 }
-
-                nextState.grid.at(nextState.player).toggleLever();
-                nextState.player = currentState.player;
             }
             else {
                 continue;
             }
 
-            if (visited.contains(nextState.grid)) {
+            if (!visited.insert(nextState.encode()).second) {
                 continue;
             }
-
-            visited.insert(nextState.grid);
 
             nextState.moves.push_back(dir);
             queue.push(std::move(nextState));

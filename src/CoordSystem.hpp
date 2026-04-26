@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <format>
 #include <stdexcept>
@@ -18,7 +19,6 @@ enum DIRECTION : uint8_t {
 struct Direction {
 public:
     constexpr Direction(const DIRECTION& d = NONE) : m_dir{d} {}
-    constexpr Direction(uint8_t v) : Direction(DIRECTION(v)) {}
 
     [[nodiscard]] constexpr explicit operator char() const {
         switch (m_dir) {
@@ -36,48 +36,88 @@ private:
     DIRECTION m_dir;
 };
 
-enum TrackType : uint8_t {
+enum TRACKTYPE : uint8_t {
     NW = 0,
     NE = 1,
     SE = 2,
     SW = 3,
     H = 4,
     V = 5,
+    NUM_TRACK = 6,
+};
+
+struct TrackType {
+public:
+    constexpr TrackType(const TRACKTYPE& d) : m_type{d} {}
+
+    [[nodiscard]] constexpr Direction ride(Direction inDir) const {
+        switch (m_type) {
+        case H:
+        case V:
+            return (inDir % 2 != m_type - H) ? inDir : NONE;
+        case NW:
+        case NE:
+        case SE:
+        case SW:
+            if (m_type == inDir - 1) {
+                return DIRECTION(((inDir + MAX_DIR - 2) % MAX_DIR) + 1);
+            }
+            else if ((m_type + 1) % MAX_DIR == inDir - 1) {
+                return DIRECTION((inDir % MAX_DIR) + 1);
+            }
+            else {
+                return NONE;
+            }
+        default: throw std::invalid_argument(std::format("Invalid track value: {}", std::to_underlying(m_type)));
+        }
+    }
+
+    [[nodiscard]] constexpr operator uint8_t() const { return uint8_t(m_type); }
+
+private:
+    TRACKTYPE m_type;
 };
 
 struct Position {
-    constexpr Position() {}
-    constexpr Position(int8_t _x, int8_t _y) : x{ _x }, y{ _y } {}
-    constexpr Position(const Direction& dir) {
-        switch (dir) {
-        case NONE:          break;
-        case RIGHT: x =  1; break;
-        case DOWN:  y =  1; break;
-        case LEFT:  x = -1; break;
-        case UP:    y = -1; break;
-        default: throw std::invalid_argument(std::format("Invalid dir value: {}", uint8_t(dir)));
+    constexpr Position() = default;
+    constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_x << 4) | (_y & 0xF)) { assert(_x < 0XF && _y < 0XF); }
+    
+    [[nodiscard]] friend inline constexpr Position operator+(Position a, Position b) { return Position(a.x() + b.x(), a.y() + b.y()); }
+    constexpr Position& operator+=(Position o) {
+        Position p = *this + o;
+        m_bits = p.m_bits;
+        return *this;
+    }
+    [[nodiscard]] friend inline constexpr Position operator+(Position p, Direction d) {
+        switch(d) {
+        case RIGHT: return Position(p.x() + 1, p.y()    );
+        case DOWN:  return Position(p.x(),     p.y() + 1);
+        case LEFT:  return Position(p.x() - 1, p.y()    );
+        case UP:    return Position(p.x(),     p.y() - 1);
+        default:    return p;
         }
     }
-
-    constexpr operator Direction() const {
-        switch (x) {
-        case -1: return LEFT;
-        case  1: return RIGHT;
-        default: break;
-        }
-        switch (y) {
-        case -1: return UP;
-        case  1: return DOWN;
-        default: return NONE;
-        }
+    constexpr Position& operator+=(Direction d) {
+        Position p = *this + d;
+        m_bits = p.m_bits;
+        return *this;
+    }
+    [[nodiscard]] friend inline constexpr bool operator==(Position a, Position b) { return a.m_bits == b.m_bits; }
+    [[nodiscard]] friend inline constexpr bool operator!=(Position a, Position b) { return a.m_bits != b.m_bits; }
+    
+    constexpr uint8_t x() const { return m_bits >> 4; }
+    constexpr uint8_t y() const { return m_bits & 0xF; }
+    constexpr void x(uint8_t _x) {
+        assert(_x < 0XF);
+        m_bits = (_x << 4) | (m_bits & 0xF);
+    }
+    constexpr void y(uint8_t _y) {
+        assert(_y < 0XF);
+        m_bits = (m_bits & 0xF0) | (_y & 0xF);
     }
 
-    constexpr Position& operator+=(Position o) { x += o.x; y += o.y; return *this; }
-    friend inline constexpr [[nodiscard]] Position operator+(Position a, Position b) { return Position(a.x + b.x, a.y + b.y); }
-    friend inline constexpr [[nodiscard]] Position operator-(Position a, Position b) { return Position(a.x - b.x, a.y - b.y); }
-    friend inline constexpr [[nodiscard]] bool operator==(Position a, Position b) { return a.x == b.x && a.y == b.y; }
-    friend inline constexpr [[nodiscard]] bool operator!=(Position a, Position b) { return a.x != b.x || a.y != b.y; }
+    constexpr uint8_t value() const { return uint8_t(m_bits); }
 
-    int8_t x = 0;
-    int8_t y = 0;
+private:
+    uint8_t m_bits = 0;
 };
