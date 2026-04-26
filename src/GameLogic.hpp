@@ -244,9 +244,11 @@ bool simulateTrain(
     return false;
 }
 
+using StateQueue = StableQueue<State, DeadState>;
+
 std::vector<Direction> buildSolution(
     const Grid& grid,
-    const StableQueue<State>& queue,
+    const StateQueue& queue,
     size_t lastIndex
 ) {
     std::vector<Direction> solution;
@@ -254,13 +256,13 @@ std::vector<Direction> buildSolution(
     size_t currentIndex = lastIndex;
     while (queue.getPrevIndex(currentIndex) != NO_INDEX) {
         size_t prevIndex = queue.getPrevIndex(currentIndex);
-        const State& prevState = queue.at(prevIndex);
-        const State& currentState = queue.at(currentIndex);
+        const DeadState prevState = queue.at(prevIndex);
+        const DeadState currentState = queue.at(currentIndex);
         Direction stepDir = Position::diffStep(prevState.player, currentState.player);
         if (stepDir == NONE) {
             assert(currentState.numToggledLevers() - prevState.numToggledLevers() > 0);
             for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
-                if (grid.at(prevState, currentState.player + dir).cell.isLever()) {
+                if (grid.at(currentState.player + dir).isLever()) {
                     stepDir = dir;
                     break;
                 }
@@ -282,7 +284,7 @@ std::vector<Direction> search(
     const std::atomic_bool& done = {}
 ) {
     absl::flat_hash_set<StateEncoding> visited(5000000);
-    StableQueue<State> queue(5000000);
+    StateQueue queue(5000000);
 
     queue.push(initialState);
     visited.insert(initialState.encode());
@@ -300,7 +302,6 @@ std::vector<Direction> search(
         }
         
         for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
-            const size_t index = queue.index();
             const State& currentState = queue.peek();
 
             State nextState = currentState;
@@ -333,7 +334,7 @@ std::vector<Direction> search(
                 nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {
-                    size_t winningIndex = queue.push(nextState, index);
+                    size_t winningIndex = queue.push(nextState);
                     auto solution = buildSolution(grid, queue, winningIndex);
 
                     stats.visited = visited.size();
@@ -348,7 +349,7 @@ std::vector<Direction> search(
                 continue;
             }
 
-            queue.push(std::move(nextState), index);
+            queue.push(std::move(nextState));
         }
 
         queue.removeFront();

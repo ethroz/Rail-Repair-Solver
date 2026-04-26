@@ -82,9 +82,7 @@ public:
     std::array<Position, MAX_OBJECTS> objectPositions = {};
     uint8_t objectCount = 0;
     Position player = {};
-private:
     uint8_t leverBits = 0;
-public:
 
     constexpr bool leverToggled(uint8_t index) const {
         assert(index < MAX_LEVERS);
@@ -150,6 +148,31 @@ public:
         return encoding;
     }
 };
+
+struct DeadState {
+    Position player = {};
+    uint8_t leverBits = 0;
+
+    constexpr DeadState() = default;
+
+    constexpr DeadState(const State& state) : player{state.player}, leverBits{state.leverBits} {}
+
+    constexpr bool leverToggled(uint8_t index) const {
+        assert(index < MAX_LEVERS);
+        return ((leverBits >> index) & 1) > 0;
+    }
+
+    constexpr void toggleLever(uint8_t index) {
+        assert(index < MAX_LEVERS);
+        leverBits ^= 1 << index;
+    }
+
+    constexpr int numToggledLevers() const {
+        return std::popcount(leverBits);
+    }
+};
+
+static_assert(std::constructible_from<DeadState, State>);
 
 struct Grid {
 public:

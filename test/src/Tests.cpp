@@ -344,20 +344,17 @@ TEST(StableQueue_PushPop) {
 
     const auto& p1 = queue.peek();
     EXPECT_EQ(1, p1);
-    const auto& val1 = queue.pop();
-    EXPECT_EQ(1, val1);
+    queue.removeFront();
     EXPECT_EQ(2, queue.size());
 
     const auto& p2 = queue.peek();
     EXPECT_EQ(2, p2);
-    const auto& val2 = queue.pop();
-    EXPECT_EQ(2, val2);
+    queue.removeFront();
     EXPECT_EQ(1, queue.size());
 
     const auto& p3 = queue.peek();
     EXPECT_EQ(3, p3);
-    const auto& val3 = queue.pop();
-    EXPECT_EQ(3, val3);
+    queue.removeFront();
     EXPECT_EQ(0, queue.size());
     EXPECT_TRUE(queue.empty());
 }
@@ -377,10 +374,10 @@ TEST(StableQueue_Exceptions) {
     StableQueue<int> queue;
 
     EXPECT_THROW(queue.peek(), std::runtime_error);
-    EXPECT_THROW(queue.pop(), std::runtime_error);
+    EXPECT_THROW(queue.removeFront(), std::runtime_error);
 
     queue.push(1);
-    (void)queue.pop(); // now empty
+    (void)queue.removeFront(); // now empty
     EXPECT_THROW(queue.peek(), std::runtime_error);
-    EXPECT_THROW(queue.pop(), std::runtime_error);
+    EXPECT_THROW(queue.removeFront(), std::runtime_error);
 }
