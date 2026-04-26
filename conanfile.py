@@ -25,6 +25,7 @@ class rail_repair_solverRecipe(ConanFile):
 
     def layout(self):
         cmake_layout(self)
+        self.cpp.source.includedirs = ["src", "thirdparty"]
 
     def generate(self):
         deps = CMakeDeps(self)
