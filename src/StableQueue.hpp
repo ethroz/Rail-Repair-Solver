@@ -174,12 +174,6 @@ private:
             }
         };
 
-        for (size_t i = 0; i < oldSize; ++i) {
-            if (m_prevIndex[i] == NO_INDEX) {
-                live[i] = 1;
-            }
-        }
-
         for (size_t i = oldDeadSize; i < oldSize; ++i) {
             markLiveChain(i);
         }
