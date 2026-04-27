@@ -264,13 +264,8 @@ std::vector<Direction> search(
     std::array<std::array<bool, 16>, 16> posVisited = {};
     Queue<Action> actionQueue(BASE);
     std::vector<Position> movable = grid.getAllMovable();
-
-    for (uint8_t x = 0; x < grid.width; ++x) {
-        for (uint8_t y = 0; y < grid.height; ++y) {
-            Position pos = {x, y};
-            bool immovable = std::find(movable.begin(), movable.end(), pos) == movable.end();
-            posVisited[y][x] = immovable;
-        }
+    for (auto& row : posVisited) {
+        row.fill(true);
     }
 
     queue.insert(initialState);
