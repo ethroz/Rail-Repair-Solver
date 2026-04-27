@@ -251,7 +251,7 @@ std::vector<Direction> search(
     const std::atomic_bool& done = {}
 ) {
     absl::flat_hash_map<StateEncoding, Rank> visited(5000000);
-    PriorityQueue<State> queue(5000000);
+    PriorityQueue<State> queue(1000000);
 
     Rank bestRank = std::numeric_limits<Rank>::max();
     std::vector<Direction> bestMoves;
