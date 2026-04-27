@@ -46,10 +46,6 @@ public:
         return m_data.front();
     }
 
-    [[nodiscard]] constexpr const T& minimum_unchecked() const noexcept {
-        return m_data.front();
-    }
-
     constexpr void insert(const T& item) {
         m_data.push_back(item);
         bubbleUp(m_data.size() - 1);
@@ -60,21 +56,11 @@ public:
         bubbleUp(m_data.size() - 1);
     }
 
-    template<typename... Args>
-    constexpr void emplace(Args&&... args) {
-        m_data.emplace_back(std::forward<Args>(args)...);
-        bubbleUp(m_data.size() - 1);
-    }
-
     [[nodiscard]] constexpr T extract_min() {
         if (empty()) {
             throw std::runtime_error("Cannot pop from an empty queue");
         }
 
-        return extract_min_unchecked();
-    }
-
-    [[nodiscard]] constexpr T extract_min_unchecked() {
         T result = std::move(m_data.front());
 
         if (m_data.size() == 1) {
@@ -85,39 +71,6 @@ public:
         m_data.front() = std::move(m_data.back());
         m_data.pop_back();
 
-        bubbleDown(0);
-
-        return result;
-    }
-
-    constexpr void heapify() {
-        if (m_data.size() < 2) {
-            return;
-        }
-
-        for (std::size_t i = parentIndex(m_data.size() - 1) + 1; i > 0; --i) {
-            bubbleDown(i - 1);
-        }
-    }
-
-    template<typename Range>
-    constexpr void assign(const Range& range) {
-        m_data.clear();
-
-        for (const auto& item : range) {
-            m_data.push_back(item);
-        }
-
-        heapify();
-    }
-
-    constexpr T replace_min(T&& item) {
-        if (empty()) {
-            throw std::runtime_error("Cannot replace minimum in an empty queue");
-        }
-
-        T result = std::move(m_data.front());
-        m_data.front() = std::move(item);
         bubbleDown(0);
 
         return result;
