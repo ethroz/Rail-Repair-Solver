@@ -39,7 +39,7 @@ void writeSolutionFile(
     file << std::format("Solution: {}", solution.empty() ? "No solution found" : solution) << std::endl;
 }
 
-bool solveLevel(const std::string& levelStr) {
+bool solveLevel(const std::string& levelStr, bool saveResult = true) {
     size_t level = std::stoll(levelStr);
     const std::filesystem::path levelPath = repoPath / "levels" / std::format("level{}.txt", level);
     const std::string fileContents = readFile(levelPath);
@@ -48,53 +48,59 @@ bool solveLevel(const std::string& levelStr) {
 
     const auto startTime = std::chrono::steady_clock::now();
     const auto solution = search(grid, startList, state, done);
+    const auto runtime = std::chrono::steady_clock::now() - startTime;
     printStats(std::cout);
     if (done) {
         return false;
     }
-    const auto runtime = std::chrono::steady_clock::now() - startTime;
+    std::string solutionStr;
     if (solution.empty()) {
-        writeSolutionFile(level, runtime, "");
         std::cout << "No solution found" << std::endl;
-        return false;
     }
     else {
-        std::string sequence;
-        sequence.reserve(solution.size());
+        solutionStr.reserve(solution.size());
         for (auto move : solution) {
-            sequence += char(move);
+            solutionStr += char(move);
         }
-
-        writeSolutionFile(level, runtime, sequence);
-        std::cout << std::format("Solution found: {}", sequence) << std::endl;
+        std::cout << std::format("Solution found: {}", solutionStr) << std::endl;
     }
 
-    return true;
+    if (saveResult) {
+        writeSolutionFile(level, runtime, solutionStr);
+    }
+
+    return !solution.empty();
 }
 
 int main(int argc, char* argv[]) {
     std::signal(SIGINT, sigHandler);
 
-    if (argc == 2) {
-        try {
-            return solveLevel(argv[1]) ? 0 : 1;
+    std::string levelStr;
+    bool saveResult = true;
+    for (int i = 1; i < argc; ++i) {
+        auto arg = std::string_view(argv[i]);
+        if (arg == "--no-save") {
+            saveResult = false;
         }
-        catch (const std::exception& e) {
-            std::cerr << e.what() << std::endl;
+        else if (std::isdigit(arg[0])) {
+            levelStr = arg;
+        }
+        else {
+            std::cerr << "Unsupported command line argument: " << arg << std::endl;
             return 1;
         }
     }
-    else if (argc == 1) {
+
+    if (levelStr.empty()) {
         while (!done) {
             try {
                 std::cout << "Choose a level: ";
-                std::string levelStr;
                 std::cin >> levelStr;
                 if (levelStr.empty()) {
                     std::cout << std::endl;
                     break;
                 }
-                solveLevel(levelStr);
+                solveLevel(levelStr, saveResult);
             }
             catch (const std::exception& e) {
                 std::cerr << e.what() << std::endl;
@@ -103,8 +109,12 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     else {
-        std::cerr << "Invalid number of arguments. Only 0 or 1 are allowed." << std::endl;
-        return 1;
+        try {
+            return solveLevel(levelStr, saveResult) ? 0 : 1;
+        }
+        catch (const std::exception& e) {
+            std::cerr << e.what() << std::endl;
+            return 1;
+        }
     }
-
 }
