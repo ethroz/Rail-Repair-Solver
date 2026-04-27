@@ -6,6 +6,13 @@
 #include <stdexcept>
 #include <utility>
 
+constexpr uint8_t X_MAX = 10;
+constexpr uint8_t Y_MAX = 10;
+constexpr uint64_t TOTAL = X_MAX * Y_MAX;
+constexpr uint8_t X_RANGE = X_MAX - 2;
+constexpr uint8_t Y_RANGE = Y_MAX - 2;
+constexpr uint64_t BASE = X_RANGE * Y_RANGE;
+
 enum DIRECTION : uint8_t {
     NONE = 0,
     RIGHT = 1,
@@ -80,7 +87,7 @@ private:
 
 struct Position {
     constexpr Position() = default;
-    constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_x << 4) | (_y & 0xF)) { assert(_x < 0XF && _y < 0XF); }
+    constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_y << 4) | (_x & 0xF)) { assert(_x < 0XF && _y < 0XF); }
     
     [[nodiscard]] friend inline constexpr Position operator+(Position a, Position b) { return Position(a.x() + b.x(), a.y() + b.y()); }
     constexpr Position& operator+=(Position o) {
@@ -102,21 +109,40 @@ struct Position {
         m_bits = p.m_bits;
         return *this;
     }
+    [[nodiscard]] friend inline constexpr Position operator-(Position p, Direction d) {
+        switch(d) {
+        case RIGHT: return Position(p.x() - 1, p.y()    );
+        case DOWN:  return Position(p.x(),     p.y() - 1);
+        case LEFT:  return Position(p.x() + 1, p.y()    );
+        case UP:    return Position(p.x(),     p.y() + 1);
+        default:    return p;
+        }
+    }
+    constexpr Position& operator-=(Direction d) {
+        Position p = *this - d;
+        m_bits = p.m_bits;
+        return *this;
+    }
     [[nodiscard]] friend inline constexpr bool operator==(Position a, Position b) { return a.m_bits == b.m_bits; }
     [[nodiscard]] friend inline constexpr bool operator!=(Position a, Position b) { return a.m_bits != b.m_bits; }
     
-    constexpr uint8_t x() const { return m_bits >> 4; }
-    constexpr uint8_t y() const { return m_bits & 0xF; }
+    constexpr uint8_t x() const { return m_bits & 0xF; }
+    constexpr uint8_t y() const { return m_bits >> 4; }
     constexpr void x(uint8_t _x) {
         assert(_x < 0XF);
-        m_bits = (_x << 4) | (m_bits & 0xF);
+        m_bits = (m_bits & 0xF0) | (_x & 0xF);
     }
     constexpr void y(uint8_t _y) {
         assert(_y < 0XF);
-        m_bits = (m_bits & 0xF0) | (_y & 0xF);
+        m_bits = (_y << 4) | (m_bits & 0xF);
     }
 
     constexpr uint8_t value() const { return uint8_t(m_bits); }
+
+    constexpr uint8_t rank() const {
+        assert(x() > 0 && x() < X_MAX - 1 && y() > 0 && y() < Y_MAX - 1);
+        return (y() - 1) * Y_RANGE + (x() - 1);
+    };
 
 private:
     uint8_t m_bits = 0;

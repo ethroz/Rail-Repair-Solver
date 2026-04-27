@@ -18,6 +18,7 @@ static const std::filesystem::path repoPath = std::filesystem::canonical(
 
 void sigHandler(int signal) {
     done = true;
+    std::cout << std::endl;
 }
 
 void writeSolutionFile(

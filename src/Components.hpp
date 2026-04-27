@@ -12,14 +12,12 @@
 #include "CoordSystem.hpp"
 
 constexpr uint8_t IMMOVABLE = 0b10000000; // A cell in which the player cannot move to.
-constexpr uint8_t TRACK = 0b01000000;
-constexpr uint8_t LEVER = 0b00100000;
-constexpr uint8_t START = 0b00010000;
-constexpr uint8_t INDEX = 0b00000111;
+constexpr uint8_t TRACK     = 0b01000000;
+constexpr uint8_t LEVER     = 0b00100000;
+constexpr uint8_t START     = 0b00010000;
+constexpr uint8_t INDEX     = 0b00000111;
 constexpr size_t MAX_LEVERS = 3;
 constexpr size_t MAX_OBJECTS = 10;
-constexpr uint8_t X_MAX = 10;
-constexpr uint8_t Y_MAX = 10;
 
 enum CELL : uint8_t {
     PLAYER       = 0,
@@ -56,7 +54,7 @@ public:
     constexpr bool isTrack() const { return (m_cell & TRACK) > 0; }
     constexpr bool isLever() const { return (m_cell & LEVER) > 0; }
     constexpr bool isStart() const { return (m_cell & START) > 0; }
-    constexpr bool isEmpty() const { return (m_cell == FLOOR) || (m_cell == HOLE); }
+    constexpr bool isEmpty() const { return (m_cell == FLOOR) || (m_cell == HOLE) || (m_cell == PLAYER); }
     constexpr uint8_t index() const { return m_cell & INDEX; }
     constexpr TrackType trackType() const {
         assert(isTrack());
@@ -75,12 +73,13 @@ private:
 
 static constexpr uint8_t ENCODING_BYTES = 10;
 using StateEncoding = std::array<uint8_t, ENCODING_BYTES>;
+using Rank = uint16_t;
 
 struct State {
 public:
     std::array<Cell, MAX_OBJECTS> objects = {};
     std::array<Position, MAX_OBJECTS> objectPositions = {};
-    uint16_t rank = 0;
+    Rank rank = 0;
     Position player = {};
 private:
     uint8_t leverBits = 0;
@@ -104,21 +103,13 @@ public:
     constexpr StateEncoding encode(uint8_t objectCount) const {
         StateEncoding encoding{};
 
-        constexpr uint8_t X_RANGE = X_MAX - 2;
-        constexpr uint8_t Y_RANGE = Y_MAX - 2;
-        constexpr uint64_t BASE = X_RANGE * Y_RANGE;
-        const auto rank = [](const Position& pos) -> uint8_t {
-            assert(pos.x() > 0 && pos.x() < X_MAX - 1 && pos.y() > 0 && pos.y() < Y_MAX - 1);
-            return (pos.x() - 1) * X_RANGE + (pos.y() - 1);
-        };
-
         uint64_t positionalEncoding = 0;
         constexpr size_t POS_ENC_BYTES = sizeof(positionalEncoding);
         static_assert(POS_ENC_BYTES <= ENCODING_BYTES);
 
         uint64_t multiplier = 1;
         for (uint8_t i = 0; i < objectCount; ++i) {
-            positionalEncoding += uint64_t(rank(objectPositions[i])) * multiplier;
+            positionalEncoding += uint64_t(objectPositions[i].rank()) * multiplier;
             multiplier *= BASE;
         }
 
@@ -141,7 +132,7 @@ public:
         for (uint8_t i = 0; i < objectCount; ++i) {
             blockTypeEncoding |= (objects[i].isTrack() ? 1 : 0) << i;
         }
-        blockTypeEncoding |= rank(player) << MAX_OBJECTS;
+        blockTypeEncoding |= player.rank() << MAX_OBJECTS;
         static_assert(MAX_OBJECTS + std::bit_width(BASE - 1) <= TYPE_ENC_BYTES * 8);
 
         for (size_t i = 0; i < TYPE_ENC_BYTES; ++i) {
@@ -158,7 +149,7 @@ public:
     constexpr Grid() = default;
 
     constexpr struct { Cell cell; uint8_t index; } at(const State& state, Position p) const {
-        for (uint8_t i = 0; i < m_objectCount; ++i) {
+        for (uint8_t i = 0; i < objectCount; ++i) {
             if (state.objects[i] == FLOOR) {
                 continue;
             }
@@ -166,7 +157,7 @@ public:
                 return {state.objects[i], i};
             }
         }
-        for (uint8_t i = 0; i < m_objectCount; ++i) {
+        for (uint8_t i = 0; i < objectCount; ++i) {
             if (state.objects[i] != FLOOR) {
                 continue;
             }
@@ -180,15 +171,30 @@ public:
         return {at(p), 0xFF};
     }
 
-    constexpr uint8_t objectCount() const { return m_objectCount; }
-    constexpr void objectCount(uint8_t c) { m_objectCount = c; }
+    constexpr std::vector<Position> getAllMovable() const {
+        std::vector<Position> movable;
+        movable.reserve(TOTAL);
 
-    constexpr const Cell& at(Position p) const { return m_data[p.x()][p.y()]; }
-    constexpr Cell& at(Position p) { return m_data[p.x()][p.y()]; }
-    constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[x][y]; }
-    constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[x][y]; }
+        for (uint8_t x = 0; x < width; ++x) {
+            for (uint8_t y = 0; y < height; ++y) {
+                const Cell& cell = at(x, y);
+                if (cell.isMovable() || cell.isLever() || cell == HOLE) {
+                    movable.push_back({x, y});
+                }
+            }
+        }
 
+        return movable;
+    }
+
+    constexpr const Cell& at(Position p) const { return m_data[p.y()][p.x()]; }
+    constexpr Cell& at(Position p) { return m_data[p.y()][p.x()]; }
+    constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }
+    constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[y][x]; }
+
+    uint8_t width = 0;
+    uint8_t height = 0;
+    uint8_t objectCount = 0;
 private:
-    std::array<std::array<Cell, Y_MAX>, X_MAX> m_data{};
-    uint8_t m_objectCount = 0;
+    std::array<std::array<Cell, X_MAX>, Y_MAX> m_data{};
 };

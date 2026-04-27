@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <cstdlib>
 #include <filesystem>
@@ -10,14 +11,13 @@
 #include <map>
 #include <queue>
 
-#include <absl/container/flat_hash_set.h>
+#include <absl/container/flat_hash_map.h>
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
 #include "PriorityQueue.hpp"
+#include "Queue.hpp"
 
-static uint8_t width = 0;
-static uint8_t height = 0;
 static struct Stats {
     size_t iterations;
     size_t visited;
@@ -76,29 +76,28 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
     Grid grid;
     State state;
 
-    size_t temp = board.find_first_of("\r\n");
-    if (temp < 2 || temp > X_MAX) {
+    size_t width = board.find_first_of("\r\n");
+    if (width < 2 || width > X_MAX) {
         throw std::invalid_argument("Invalid level width");
     }
-    width = uint8_t(temp);
-    temp = std::count(board.begin(), board.end(), '\n');
-    if (temp < 2 || temp > Y_MAX) {
+    grid.width = uint8_t(width);
+    size_t height = std::count(board.begin(), board.end(), '\n');
+    if (height < 2 || height > Y_MAX) {
         throw std::invalid_argument("Invalid level height");
     }
-    height = uint8_t(temp);
+    grid.height = uint8_t(height);
 
     Position pos;
     uint8_t numLevers = 0;
-    uint8_t objectCount = 0;
     for (size_t i = 0; i < board.size(); i++) {
         const char character = board[i];
         if (character == '\n') {
-            if (pos.x() != width) {
+            if (pos.x() != grid.width) {
                 throw std::invalid_argument("Inconsistent level widths");
             }
             pos.x(0);
             pos.y(pos.y() + 1);
-            if (pos.y() == height) {
+            if (pos.y() == grid.height) {
                 break;
             }
             else {
@@ -110,17 +109,17 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
         }
 
         const bool top = pos.y() == 0;
-        const bool right = pos.x() == width - 1;
-        const bool bottom = pos.y() == height - 1;
+        const bool right = pos.x() == grid.width - 1;
+        const bool bottom = pos.y() == grid.height - 1;
         const bool left = pos.x() == 0;
         const bool edge = top || bottom || left || right;
         const auto cell = LEGEND.at({character, edge});
 
         if (cell.isMovable()) {
             if (cell.isTrack()) {
-                state.objects[objectCount] = cell;
-                state.objectPositions[objectCount] = pos;
-                ++objectCount;
+                state.objects[grid.objectCount] = cell;
+                state.objectPositions[grid.objectCount] = pos;
+                ++grid.objectCount;
             }
             grid.at(pos) = FLOOR;
         }
@@ -144,7 +143,6 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
 
         pos.x(pos.x() + 1);
     }
-    grid.objectCount(objectCount);
 
     if (state.player == Position()) {
         throw std::invalid_argument("Missing a player");
@@ -152,8 +150,8 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
     if (numLevers > MAX_LEVERS || numLevers == 0) {
         throw std::invalid_argument(std::format("Invalid number of levers: {}", numLevers));
     }
-    if (objectCount > MAX_OBJECTS) {
-        throw std::invalid_argument(std::format("Invalid number of objects: {}", objectCount));
+    if (grid.objectCount > MAX_OBJECTS) {
+        throw std::invalid_argument(std::format("Invalid number of objects: {}", grid.objectCount));
     }
 
     return { grid, state };
@@ -190,15 +188,15 @@ private:
 StartList createStartList(const Grid& grid) {
     StartList list;
 
-    for (uint8_t x = 0; x < width; x++) {
-        for (uint8_t y = 0; y < height; y++) {
+    for (uint8_t x = 0; x < grid.width; x++) {
+        for (uint8_t y = 0; y < grid.height; y++) {
             const auto cell = grid.at(x, y);
             if (cell.isStart()) {
                 Direction dir;
 
                 const bool top = y == 0;
-                const bool right = x == width - 1;
-                const bool bottom = y == height - 1;
+                const bool right = x == grid.width - 1;
+                const bool bottom = y == grid.height - 1;
                 const bool left = x == 0;
                 uint8_t flags = (top ? 0b1000 : 0) | (right ? 0b0100 : 0) | (bottom ? 0b0010 : 0) | (left ? 0b0001 : 0);
                 switch (flags) {
@@ -236,8 +234,8 @@ bool simulateTrain(
 
         const bool exitsGrid =
             (pos.y() == 0 && dir == UP) ||
-            (pos.x() == width - 1 && dir == RIGHT) ||
-            (pos.y() == height - 1 && dir == DOWN) ||
+            (pos.x() == grid.width - 1 && dir == RIGHT) ||
+            (pos.y() == grid.height - 1 && dir == DOWN) ||
             (pos.x() == 0 && dir == LEFT);
         if (exitsGrid) {
             return true;
@@ -252,19 +250,43 @@ std::vector<Direction> search(
     const State& initialState,
     const std::atomic_bool& done = {}
 ) {
-    absl::flat_hash_set<StateEncoding> visited(5000000);
+    absl::flat_hash_map<StateEncoding, Rank> visited(5000000);
     PriorityQueue<State> queue(5000000);
 
+    Rank bestRank = std::numeric_limits<Rank>::max();
+    std::vector<Direction> bestMoves;
+
+    struct Action {
+        Position pos;
+        std::vector<Direction> moves;
+    };
+
+    std::array<std::array<bool, 16>, 16> posVisited = {};
+    Queue<Action> actionQueue(BASE);
+    std::vector<Position> movable = grid.getAllMovable();
+
+    for (uint8_t x = 0; x < grid.width; ++x) {
+        for (uint8_t y = 0; y < grid.height; ++y) {
+            Position pos = {x, y};
+            bool immovable = std::find(movable.begin(), movable.end(), pos) == movable.end();
+            posVisited[y][x] = immovable;
+        }
+    }
+
     queue.insert(initialState);
-    visited.insert(initialState.encode(grid.objectCount()));
+    visited[initialState.encode(grid.objectCount)] = initialState.rank;
 
     stats.iterations = 0;
 
     while (!queue.empty()) {
         const State currentState = queue.extract_min();
 
+        if (currentState.rank > bestRank) {
+            break;
+        }
+
         stats.iterations++;
-        if (stats.iterations % 1000000 == 0) {
+        if (stats.iterations % 100000 == 0) {
             if (done) {
                 break;
             }
@@ -272,55 +294,87 @@ std::vector<Direction> search(
             std::cout.flush();
         }
 
-        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
-            State nextState = currentState;
-            ++nextState.rank;
-            const auto nextMove = nextState.player + dir;
-            const auto [nextCell, nextObjIndex] = grid.at(nextState, nextMove);
+        for (Position pos : movable) {
+            posVisited[pos.y()][pos.x()] = false;
+        }
+        actionQueue.clear();
+        actionQueue.push({currentState.player, {}});
 
-            assert(nextCell != PLAYER);
-            if (nextCell.isMovable()) {
-                if (nextCell != FLOOR) {
-                    const auto nextNextMove = nextMove + dir;
-                    const auto [nextNextCell, _] = grid.at(nextState, nextNextMove);
-                    if (!nextNextCell.isEmpty()) {
-                        continue;
-                    }
-
-                    assert(nextObjIndex < MAX_OBJECTS);
-                    nextState.objectPositions[nextObjIndex] += dir;
-                    if (nextNextCell == HOLE) {
-                        nextState.objects[nextObjIndex] = FLOOR;
-                    }
-                }
-
-                nextState.player = nextMove;
-            }
-            else if (
-                nextCell.isLever() &&
-                !nextState.leverToggled(nextCell.index()) &&
-                simulateTrain(grid, startList, nextState, nextCell.index())
-            ) {
-                nextState.toggleLever(nextCell.index());
-
-                if (nextState.numToggledLevers() == startList.size()) {
-                    nextState.moves.push_back(dir);
-
-                    stats.visited = visited.size();
-                    return nextState.moves;
-                }
-            }
-            else {
+        while (!actionQueue.empty()) {
+            const auto [pos, moves] = actionQueue.pop();
+            bool& used = posVisited[pos.y()][pos.x()];
+            if (used) {
                 continue;
             }
+            used = true;
 
-            if (visited.insert(nextState.encode(grid.objectCount())).second) {
-                nextState.moves.push_back(dir);
-                queue.insert(std::move(nextState));
+            for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+                const auto nextMove = pos + dir;
+                if (posVisited[nextMove.y()][nextMove.x()]) {
+                    continue;
+                }
+
+                const auto [nextCell, nextObjIndex] = grid.at(currentState, nextMove);
+                if (nextCell.isMovable()) {
+                    if (nextCell == FLOOR) {
+                        Action action = {nextMove, moves};
+                        action.moves.push_back(dir);
+                        actionQueue.push(std::move(action));
+                    }
+                    else if (nextCell.isTrack()) {
+                        const auto nextNextMove = nextMove + dir;
+                        const auto [nextNextCell, _] = grid.at(currentState, nextNextMove);
+                        if (!nextNextCell.isEmpty()) {
+                            continue;
+                        }
+
+                        State nextState = currentState;
+                        nextState.player = nextMove;
+                        assert(nextObjIndex < MAX_OBJECTS);
+                        nextState.objectPositions[nextObjIndex] = nextNextMove;
+                        if (nextNextCell == HOLE) {
+                            nextState.objects[nextObjIndex] = FLOOR;
+                        }
+
+                        nextState.rank += Rank(moves.size() + 1);
+                        auto [it, inserted] = visited.try_emplace(nextState.encode(grid.objectCount), nextState.rank);
+                        if (inserted || it->second > nextState.rank) {
+                            it->second = nextState.rank;
+                            nextState.moves.append_range(moves);
+                            nextState.moves.push_back(dir);
+                            queue.insert(std::move(nextState));
+                        }
+                    }
+                }
+                else if (
+                    nextCell.isLever() &&
+                    !currentState.leverToggled(nextCell.index()) &&
+                    simulateTrain(grid, startList, currentState, nextCell.index())
+                ) {
+                    State nextState = currentState;
+                    nextState.player = pos;
+                    nextState.toggleLever(nextCell.index());
+                    nextState.rank += Rank(moves.size() + 1);
+                    nextState.moves.append_range(moves);
+                    nextState.moves.push_back(dir);
+
+                    if (nextState.numToggledLevers() == startList.size() && nextState.rank < bestRank) {
+                        bestRank = nextState.rank;
+                        bestMoves = std::move(nextState.moves);
+                        std::cout << std::format("Found a solution with {} moves.\n", bestRank);
+                    }
+                    else {
+                        auto [it, inserted] = visited.try_emplace(nextState.encode(grid.objectCount), nextState.rank);
+                        if (inserted || it->second > nextState.rank) {
+                            it->second = nextState.rank;
+                            queue.insert(std::move(nextState));
+                        }
+                    }
+                }
             }
         }
     }
 
     stats.visited = visited.size();
-    return {};
+    return bestMoves;
 }
