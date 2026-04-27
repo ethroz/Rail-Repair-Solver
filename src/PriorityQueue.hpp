@@ -1,41 +1,69 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
+#include <functional>
 #include <stdexcept>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
 template<typename T, typename Compare = std::less<T>>
 class PriorityQueue {
 public:
+    static constexpr std::size_t Arity = 4;
+
     constexpr PriorityQueue() = default;
 
-    constexpr PriorityQueue(size_t capacity) {
-        m_data.reserve(std::max(capacity, size_t(1)));
+    explicit constexpr PriorityQueue(std::size_t capacity) {
+        m_data.reserve(capacity);
     }
 
-    [[nodiscard]] constexpr bool empty() const { return m_data.empty(); }
+    [[nodiscard]] constexpr bool empty() const noexcept {
+        return m_data.empty();
+    }
 
-    [[nodiscard]] constexpr size_t size() const { return m_data.size(); }
+    [[nodiscard]] constexpr std::size_t size() const noexcept {
+        return m_data.size();
+    }
 
-    constexpr void clear() { m_data.clear(); }
+    [[nodiscard]] constexpr std::size_t capacity() const noexcept {
+        return m_data.capacity();
+    }
+
+    constexpr void clear() noexcept {
+        m_data.clear();
+    }
+
+    constexpr void reserve(std::size_t capacity) {
+        m_data.reserve(capacity);
+    }
 
     [[nodiscard]] constexpr const T& minimum() const {
         if (empty()) {
             throw std::runtime_error("The queue is empty");
         }
-        return m_data[0];
+
+        return m_data.front();
     }
 
-    constexpr void insert(T&& item) {
-        m_data.push_back(std::move(item));
-        bubbleUp();
+    [[nodiscard]] constexpr const T& minimum_unchecked() const noexcept {
+        return m_data.front();
     }
 
     constexpr void insert(const T& item) {
         m_data.push_back(item);
-        bubbleUp();
+        bubbleUp(m_data.size() - 1);
+    }
+
+    constexpr void insert(T&& item) {
+        m_data.push_back(std::move(item));
+        bubbleUp(m_data.size() - 1);
+    }
+
+    template<typename... Args>
+    constexpr void emplace(Args&&... args) {
+        m_data.emplace_back(std::forward<Args>(args)...);
+        bubbleUp(m_data.size() - 1);
     }
 
     [[nodiscard]] constexpr T extract_min() {
@@ -43,51 +71,117 @@ public:
             throw std::runtime_error("Cannot pop from an empty queue");
         }
 
-        T item{};
-        std::swap(item, m_data[0]);
-        std::swap(m_data[0], m_data[m_data.size() - 1]);
+        return extract_min_unchecked();
+    }
+
+    [[nodiscard]] constexpr T extract_min_unchecked() {
+        T result = std::move(m_data.front());
+
+        if (m_data.size() == 1) {
+            m_data.pop_back();
+            return result;
+        }
+
+        m_data.front() = std::move(m_data.back());
         m_data.pop_back();
-        bubbleDown();
-        return item;
+
+        bubbleDown(0);
+
+        return result;
     }
-    
-private:    
-    constexpr void bubbleUp() {
-        size_t currentIndex = m_data.size() - 1;
-        while (currentIndex > 0) {
-            const size_t parentIndex = (currentIndex - 1) / 2;
-            if (lessThan(m_data[parentIndex], m_data[currentIndex])) {
-                break;
-            }
-            std::swap(m_data[currentIndex], m_data[parentIndex]);
-            currentIndex = parentIndex;
+
+    constexpr void heapify() {
+        if (m_data.size() < 2) {
+            return;
+        }
+
+        for (std::size_t i = parentIndex(m_data.size() - 1) + 1; i > 0; --i) {
+            bubbleDown(i - 1);
         }
     }
 
-    constexpr void bubbleDown() {
-        size_t currentIndex = 0;
+    template<typename Range>
+    constexpr void assign(const Range& range) {
+        m_data.clear();
+
+        for (const auto& item : range) {
+            m_data.push_back(item);
+        }
+
+        heapify();
+    }
+
+    constexpr T replace_min(T&& item) {
+        if (empty()) {
+            throw std::runtime_error("Cannot replace minimum in an empty queue");
+        }
+
+        T result = std::move(m_data.front());
+        m_data.front() = std::move(item);
+        bubbleDown(0);
+
+        return result;
+    }
+
+private:
+    [[nodiscard]] static constexpr std::size_t parentIndex(std::size_t index) noexcept {
+        return (index - 1) / Arity;
+    }
+
+    [[nodiscard]] static constexpr std::size_t firstChildIndex(std::size_t index) noexcept {
+        return Arity * index + 1;
+    }
+
+    constexpr void bubbleUp(std::size_t index) {
+        T value = std::move(m_data[index]);
+
+        while (index > 0) {
+            const std::size_t parent = parentIndex(index);
+
+            // Stop when parent <= value.
+            if (!m_compare(value, m_data[parent])) {
+                break;
+            }
+
+            m_data[index] = std::move(m_data[parent]);
+            index = parent;
+        }
+
+        m_data[index] = std::move(value);
+    }
+
+    constexpr void bubbleDown(std::size_t index) {
+        const std::size_t count = m_data.size();
+        T value = std::move(m_data[index]);
+
         while (true) {
-            const size_t leftIndex = 2 * currentIndex + 1;
-            const size_t rightIndex = 2 * currentIndex + 2;
-            size_t smallestIndex = currentIndex;
+            const std::size_t firstChild = firstChildIndex(index);
 
-            if (leftIndex < m_data.size() && lessThan(m_data[leftIndex], m_data[smallestIndex])) {
-                smallestIndex = leftIndex;
-            }
-
-            if (rightIndex < m_data.size() && lessThan(m_data[rightIndex], m_data[smallestIndex])) {
-                smallestIndex = rightIndex;
-            }
-
-            if (smallestIndex == currentIndex) {
+            if (firstChild >= count) {
                 break;
             }
 
-            std::swap(m_data[currentIndex], m_data[smallestIndex]);
-            currentIndex = smallestIndex;
+            std::size_t smallestChild = firstChild;
+            const std::size_t lastChild = std::min(firstChild + Arity, count);
+
+            for (std::size_t child = firstChild + 1; child < lastChild; ++child) {
+                if (m_compare(m_data[child], m_data[smallestChild])) {
+                    smallestChild = child;
+                }
+            }
+
+            // Stop when value <= smallest child.
+            if (!m_compare(m_data[smallestChild], value)) {
+                break;
+            }
+
+            m_data[index] = std::move(m_data[smallestChild]);
+            index = smallestChild;
         }
+
+        m_data[index] = std::move(value);
     }
 
     std::vector<T> m_data;
-    Compare lessThan;
+    Compare m_compare{};
 };
