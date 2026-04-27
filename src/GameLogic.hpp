@@ -263,11 +263,11 @@ std::vector<Direction> search(
 
         stats.iterations++;
         if (stats.iterations % 1000000 == 0) {
-            std::cout << std::format("States checked: {}\r", stats.iterations);
-            std::cout.flush();
             if (done) {
                 break;
             }
+            std::cout << std::format("\rStates checked: {}. Queue size: {}. Visited cache: {}. ", stats.iterations, queue.size(), visited.size());
+            std::cout.flush();
         }
 
         for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
@@ -293,9 +293,11 @@ std::vector<Direction> search(
 
                 nextState.player = nextMove;
             }
-            else if (nextCell.isLever() &&
-            !nextState.leverToggled(nextCell.index()) &&
-            simulateTrain(grid, startList, nextState, nextCell.index())) {
+            else if (
+                nextCell.isLever() &&
+                !nextState.leverToggled(nextCell.index()) &&
+                simulateTrain(grid, startList, nextState, nextCell.index())
+            ) {
                 nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {

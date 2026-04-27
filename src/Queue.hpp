@@ -22,6 +22,8 @@ public:
 
     [[nodiscard]] constexpr bool empty() const { return m_size == 0; }
 
+    [[nodiscard]] constexpr size_t size() const { return m_size; }
+
     constexpr void reserve(size_t size) {
         if (size < m_capacity) {
             throw std::runtime_error("Cannot shrink a queue allocation");
