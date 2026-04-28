@@ -23,10 +23,13 @@ def level_path(level: int) -> Path:
     return REPO_ROOT / "levels" / f"level{level}.txt"
 
 
-def run_level(level: int, timeout: float | None) -> LevelResult:
+def run_level(level: int, save: bool, timeout: float | None) -> LevelResult:
+    command = [str(SOLVER_EXE), str(level)]
+    if not save:
+        command.append("--no-save")
     start = time.perf_counter()
     completed = subprocess.run(
-        [str(SOLVER_EXE), str(level), "--no-save"],
+        command,
         text=True,
         timeout=timeout,
         check=False,
@@ -59,6 +62,11 @@ def main() -> int:
         default=None,
         help="Optional timeout in seconds per level.",
     )
+    parser.add_argument(
+        "--save",
+        action="store_true",
+        help="Allow the solver to save its solution to its respective solution file."
+    )
     args = parser.parse_args()
 
     if args.max_level < 1:
@@ -79,7 +87,7 @@ def main() -> int:
     for level in range(1, args.max_level + 1):
         for run in range(1, args.runs + 1):
             try:
-                result = run_level(level, args.timeout)
+                result = run_level(level, args.save, args.timeout)
             except subprocess.TimeoutExpired:
                 print(f"level {level:>2}, run {run:>2}: TIMEOUT")
                 return 1
