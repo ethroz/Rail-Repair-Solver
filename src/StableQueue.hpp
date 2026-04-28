@@ -34,9 +34,13 @@ public:
         m_prevIndex.clear();
     }
 
+    [[nodiscard]] constexpr IndexType peekIndex() const {
+        return empty() ? NO_INDEX : IndexType(m_dead.size());
+    }
+
     constexpr IndexType push(Alive&& item) {
         pruneBeforeGrowth();
-        const IndexType prevIndex = empty() ? NO_INDEX : IndexType(m_dead.size());
+        const IndexType prevIndex = peekIndex();
         m_alive.push(std::move(item));
         m_prevIndex.push_back(prevIndex);
         assert(checkInvariants());
@@ -49,13 +53,15 @@ public:
     }
 
     [[nodiscard]] constexpr Dead at(IndexType index) const {
-        if (index >= m_prevIndex.size()) {
-            throw std::invalid_argument("IndexType out of range");
-        }
         if (index < m_dead.size()) {
             return m_dead[index];
         }
-        return Dead(m_alive.at(index - m_dead.size()));
+        else if (index == m_dead.size()) {
+            return Dead(m_alive.peek());
+        }
+        else {
+            throw std::invalid_argument("IndexType out of range");
+        }
     }
 
     [[nodiscard]] constexpr IndexType getPrevIndex(IndexType index) const {

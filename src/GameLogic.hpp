@@ -246,29 +246,44 @@ bool simulateTrain(
 
 using StateQueue = StableQueue<State, DeadState, uint32_t>;
 
+Direction getStepDirection(
+    const Grid& grid,
+    const DeadState& currentState,
+    const DeadState& prevState
+) {
+    Direction stepDir = Position::diffStep(prevState.player, currentState.player);
+    if (stepDir == NONE) {
+        assert(currentState.numToggledLevers() - prevState.numToggledLevers() > 0);
+        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+            if (grid.at(currentState.player + dir).isLever()) {
+                stepDir = dir;
+                break;
+            }
+        }
+        assert(stepDir != NONE);
+    }
+    return stepDir;
+}
+
 std::vector<Direction> buildSolution(
     const Grid& grid,
     const StateQueue& queue,
-    StateQueue::IndexType lastIndex
+    const State& lastState
 ) {
     std::vector<Direction> solution;
+
+    Direction stepDir = getStepDirection(grid, lastState, queue.peek());
+    solution.push_back(stepDir);
     
-    StateQueue::IndexType currentIndex = lastIndex;
-    while (queue.getPrevIndex(currentIndex) != StateQueue::NO_INDEX) {
+    StateQueue::IndexType currentIndex = queue.peekIndex();
+    while (true) {
         StateQueue::IndexType prevIndex = queue.getPrevIndex(currentIndex);
+        if (prevIndex == StateQueue::NO_INDEX) {
+            break;
+        }
         const DeadState prevState = queue.at(prevIndex);
         const DeadState currentState = queue.at(currentIndex);
-        Direction stepDir = Position::diffStep(prevState.player, currentState.player);
-        if (stepDir == NONE) {
-            assert(currentState.numToggledLevers() - prevState.numToggledLevers() > 0);
-            for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
-                if (grid.at(currentState.player + dir).isLever()) {
-                    stepDir = dir;
-                    break;
-                }
-            }
-            assert(stepDir != NONE);
-        }
+        Direction stepDir = getStepDirection(grid, currentState, prevState);
         solution.push_back(stepDir);
         currentIndex = prevIndex;
     }
@@ -334,8 +349,7 @@ std::vector<Direction> search(
                 nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {
-                    StateQueue::IndexType winningIndex = queue.push(nextState);
-                    auto solution = buildSolution(grid, queue, winningIndex);
+                    auto solution = buildSolution(grid, queue, nextState);
 
                     stats.visited = visited.size();
                     return solution;
