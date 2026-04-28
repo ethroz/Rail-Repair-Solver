@@ -12,12 +12,12 @@
 
 #include "Queue.hpp"
 
-static constexpr size_t NO_INDEX = std::numeric_limits<size_t>::max();
-
-template<typename Alive, typename Dead = Alive>
+template<typename Alive, typename Dead = Alive, typename Index = size_t>
+    requires std::constructible_from<Dead, Alive>
 class StableQueue {
 public:
-    static_assert(std::constructible_from<Dead, Alive>);
+    using IndexType = Index;
+    static constexpr IndexType NO_INDEX = std::numeric_limits<IndexType>::max();
 
     constexpr StableQueue(size_t capacity = 1) :
         m_alive(std::max(capacity / 2, size_t(1))) {
@@ -34,23 +34,23 @@ public:
         m_prevIndex.clear();
     }
 
-    constexpr size_t push(Alive&& item) {
+    constexpr IndexType push(Alive&& item) {
         pruneBeforeGrowth();
-        const size_t prevIndex = empty() ? NO_INDEX : m_dead.size();
+        const IndexType prevIndex = empty() ? NO_INDEX : IndexType(m_dead.size());
         m_alive.push(std::move(item));
         m_prevIndex.push_back(prevIndex);
         assert(checkInvariants());
-        return m_prevIndex.size() - 1;
+        return IndexType(m_prevIndex.size()) - 1;
     }
 
-    constexpr size_t push(const Alive& item) {
+    constexpr IndexType push(const Alive& item) {
         Alive copy = item;
         return push(std::move(copy));
     }
 
-    [[nodiscard]] constexpr Dead at(size_t index) const {
+    [[nodiscard]] constexpr Dead at(IndexType index) const {
         if (index >= m_prevIndex.size()) {
-            throw std::invalid_argument("Index out of range");
+            throw std::invalid_argument("IndexType out of range");
         }
         if (index < m_dead.size()) {
             return m_dead[index];
@@ -58,9 +58,9 @@ public:
         return Dead(m_alive.at(index - m_dead.size()));
     }
 
-    [[nodiscard]] constexpr size_t getPrevIndex(size_t index) const {
+    [[nodiscard]] constexpr IndexType getPrevIndex(IndexType index) const {
         if (index >= m_prevIndex.size()) {
-            throw std::invalid_argument("Index out of range");
+            throw std::invalid_argument("IndexType out of range");
         }
         return m_prevIndex[index];
     }
@@ -145,9 +145,9 @@ private:
     }
 
     constexpr void pruneDeadNodes() {
-        const size_t oldDeadSize = m_dead.size();
-        const size_t oldAliveSize = m_alive.size();
-        const size_t oldSize = m_prevIndex.size();
+        const IndexType oldDeadSize = IndexType(m_dead.size());
+        const IndexType oldAliveSize = IndexType(m_alive.size());
+        const IndexType oldSize = IndexType(m_prevIndex.size());
 
         assert(checkInvariants());
 
@@ -159,8 +159,8 @@ private:
 
         std::vector<uint8_t> live(oldSize, 0);
 
-        auto markLiveChain = [&](size_t startIndex) {
-            size_t index = startIndex;
+        auto markLiveChain = [&](IndexType startIndex) {
+            IndexType index = startIndex;
 
             while (index != NO_INDEX) {
                 assert(index < oldSize);
@@ -174,14 +174,14 @@ private:
             }
         };
 
-        for (size_t i = oldDeadSize; i < oldSize; ++i) {
+        for (IndexType i = oldDeadSize; i < oldSize; ++i) {
             markLiveChain(i);
         }
 
-        std::vector<size_t> remap(oldSize, NO_INDEX);
+        std::vector<IndexType> remap(oldSize, NO_INDEX);
 
-        size_t writeDeadIndex = 0;
-        for (size_t readDeadIndex = 0; readDeadIndex < oldDeadSize; ++readDeadIndex) {
+        IndexType writeDeadIndex = 0;
+        for (IndexType readDeadIndex = 0; readDeadIndex < oldDeadSize; ++readDeadIndex) {
             if (!live[readDeadIndex]) {
                 continue;
             }
@@ -196,12 +196,12 @@ private:
             ++writeDeadIndex;
         }
 
-        const size_t newDeadSize = writeDeadIndex;
-        const size_t deadRemoved = oldDeadSize - newDeadSize;
+        const IndexType newDeadSize = writeDeadIndex;
+        const IndexType deadRemoved = oldDeadSize - newDeadSize;
 
-        for (size_t aliveOffset = 0; aliveOffset < oldAliveSize; ++aliveOffset) {
-            const size_t oldIndex = oldDeadSize + aliveOffset;
-            const size_t newIndex = newDeadSize + aliveOffset;
+        for (IndexType aliveOffset = 0; aliveOffset < oldAliveSize; ++aliveOffset) {
+            const IndexType oldIndex = oldDeadSize + aliveOffset;
+            const IndexType newIndex = newDeadSize + aliveOffset;
 
             remap[oldIndex] = newIndex;
 
@@ -211,25 +211,25 @@ private:
         }
 
         m_dead.erase(
-            m_dead.begin() + static_cast<std::ptrdiff_t>(newDeadSize),
+            m_dead.begin() + newDeadSize,
             m_dead.end()
         );
 
         m_prevIndex.erase(
-            m_prevIndex.begin() + static_cast<std::ptrdiff_t>(newDeadSize + oldAliveSize),
+            m_prevIndex.begin() + newDeadSize + oldAliveSize,
             m_prevIndex.end()
         );
 
         // Remap all retained prevIndex links.
         for (size_t i = 0; i < m_prevIndex.size(); ++i) {
-            size_t oldPrevIndex = m_prevIndex[i];
+            const IndexType oldPrevIndex = m_prevIndex[i];
 
             if (oldPrevIndex == NO_INDEX) {
                 continue;
             }
             assert(oldPrevIndex < oldSize); // StableQueue contains invalid prevIndex
 
-            size_t newPrevIndex = remap[oldPrevIndex];
+            const IndexType newPrevIndex = remap[oldPrevIndex];
             assert(newPrevIndex != NO_INDEX); // StableQueue pruning removed a required parent
 
             m_prevIndex[i] = newPrevIndex;
@@ -242,7 +242,7 @@ private:
         }
 
         for (size_t i = 0; i < m_prevIndex.size(); ++i) {
-            const size_t prevIndex = m_prevIndex[i];
+            const IndexType prevIndex = m_prevIndex[i];
 
             if (prevIndex != NO_INDEX && prevIndex >= m_prevIndex.size()) {
                 return false;
@@ -255,5 +255,5 @@ private:
 private:
     Queue<Alive> m_alive;
     std::vector<Dead> m_dead;
-    std::vector<size_t> m_prevIndex;
+    std::vector<IndexType> m_prevIndex;
 };

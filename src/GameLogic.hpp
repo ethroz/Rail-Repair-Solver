@@ -244,18 +244,18 @@ bool simulateTrain(
     return false;
 }
 
-using StateQueue = StableQueue<State, DeadState>;
+using StateQueue = StableQueue<State, DeadState, uint32_t>;
 
 std::vector<Direction> buildSolution(
     const Grid& grid,
     const StateQueue& queue,
-    size_t lastIndex
+    StateQueue::IndexType lastIndex
 ) {
     std::vector<Direction> solution;
     
-    size_t currentIndex = lastIndex;
-    while (queue.getPrevIndex(currentIndex) != NO_INDEX) {
-        size_t prevIndex = queue.getPrevIndex(currentIndex);
+    StateQueue::IndexType currentIndex = lastIndex;
+    while (queue.getPrevIndex(currentIndex) != StateQueue::NO_INDEX) {
+        StateQueue::IndexType prevIndex = queue.getPrevIndex(currentIndex);
         const DeadState prevState = queue.at(prevIndex);
         const DeadState currentState = queue.at(currentIndex);
         Direction stepDir = Position::diffStep(prevState.player, currentState.player);
@@ -334,7 +334,7 @@ std::vector<Direction> search(
                 nextState.toggleLever(nextCell.index());
 
                 if (nextState.numToggledLevers() == startList.size()) {
-                    size_t winningIndex = queue.push(nextState);
+                    StateQueue::IndexType winningIndex = queue.push(nextState);
                     auto solution = buildSolution(grid, queue, winningIndex);
 
                     stats.visited = visited.size();
