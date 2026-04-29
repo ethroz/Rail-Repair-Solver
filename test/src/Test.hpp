@@ -39,8 +39,6 @@ public:
 
     [[nodiscard]] std::string_view name() const { return m_name; }
     [[nodiscard]] bool passed() const { return !m_failed; }
-    [[nodiscard]] bool disabled() const { return m_disabled; }
-    void disable() { m_disabled = true; }
 
     virtual void run() final {
         try {
@@ -67,7 +65,6 @@ protected:
     bool m_failed = false;
 
 private:
-    bool m_disabled = false;
     const std::string_view m_name;
     const std::string m_file;
 };
@@ -134,29 +131,20 @@ void Fixture_##x::runImpl()
 int main(int argc, char* argv[]) {
     rlutil::saveDefaultColor();
 
-    size_t numDisabled = 0;
-    for (int i = 1; i < argc; ++i) {
-        auto arg = std::string_view(argv[i]);
-        if (arg.starts_with("--filter=")) {
-            std::string_view testName = arg.substr(9);
-            for (auto& test : tests) {
-                if (test->name() != testName) {
-                    test->disable();
-                    ++numDisabled;
-                }
-            }
-            if (numDisabled == tests.size()) {
-                std::cerr << "Test does not exist: " << testName << std::endl;
+    const int numArgs = argc - 1;
+    std::vector<std::string_view> enabled(numArgs);
+    for (int i = 0; i < numArgs; ++i) {
+        auto testName = std::string_view(argv[i + 1]);
+        if (std::find_if(tests.begin(), tests.end(), [&](auto&& test){
+                return test->name() == testName;
+            }) == tests.end()) {
+            std::cerr << "Test does not exist: " << testName << std::endl;
                 return 1;
-            }
         }
-        else {
-            std::cerr << "Unsupported command line argument: " << arg << std::endl;
-            return 1;
-        }
+        enabled[i] = std::move(testName);
     }
 
-    if (numDisabled == 0) {
+    if (enabled.empty() || enabled.size() == tests.size()) {
         std::cout << "Running All Tests\n" << std::endl;
     }
 
@@ -172,7 +160,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::string_view> failedTests;
     for (const auto& test : tests) {
-        if (test->disabled()) {
+        if (!enabled.empty() && std::find(enabled.begin(), enabled.end(), test->name()) == enabled.end()) {
             continue;
         }
 
