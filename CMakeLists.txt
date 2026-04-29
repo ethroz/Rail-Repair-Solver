@@ -8,6 +8,12 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+option(VERBOSE_LOGS OFF)
+
+if (VERBOSE_LOGS)
+add_compile_definitions(VERBOSE_LOGS)
+endif()
+
 find_package(absl REQUIRED)
 
 add_executable(rail_repair_solver src/main.cpp)

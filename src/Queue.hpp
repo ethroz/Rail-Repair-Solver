@@ -1,7 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <concepts>
+#include <ranges>
 #include <stdexcept>
+#include <type_traits>
+#include <utility>
 
 #include "Allocator.hpp"
 
@@ -13,6 +17,9 @@ public:
         m_data = m_allocator.allocate(m_capacity);
     }
 
+    Queue(const Queue&) = delete;
+    Queue& operator=(const Queue&) = delete;
+
     constexpr ~Queue() {
         clear();
         m_allocator.deallocate(&m_data, m_capacity);
@@ -21,6 +28,10 @@ public:
     static constexpr size_t GROWTH_FACTOR = 2;
 
     [[nodiscard]] constexpr bool empty() const { return m_size == 0; }
+    
+    [[nodiscard]] constexpr size_t size() const { return m_size; }
+
+    [[nodiscard]] constexpr size_t capacity() const { return m_capacity; }
 
     constexpr void reserve(size_t size) {
         if (size < m_capacity) {
@@ -103,12 +114,7 @@ public:
         if (m_size == m_capacity) {
             reserve(m_capacity * GROWTH_FACTOR);
         }
-
-        m_allocator.construct(m_data + m_back++, std::move(item));
-        m_size++;
-        if (m_back == m_capacity) {
-            m_back = 0;
-        }
+        unchecked_push(std::move(item));
     }
 
     constexpr void push(const T& item) {
@@ -116,13 +122,27 @@ public:
         push(std::move(copy));
     }
 
+    template <std::ranges::input_range R>
+    requires std::constructible_from<T, std::ranges::range_reference_t<R>> &&
+             std::ranges::sized_range<R>
+    constexpr void pushRange(R&& rng) {
+        const auto count = size_t(std::ranges::size(rng));
+
+        if (count > m_capacity - m_size) {
+            reserve(growCapacityFor(m_size + count));
+        }
+
+        for (auto&& item : rng) {
+            unchecked_push(std::forward<decltype(item)>(item));
+        }
+    }
+
     [[nodiscard]] constexpr T pop() {
         if (empty()) {
             throw std::runtime_error("Cannot pop from an empty queue");
         }
 
-        T item{};
-        std::swap(item, m_data[m_front]);
+        T item = std::move(m_data[m_front]);
         m_allocator.destroy(m_data + m_front++);
         m_size--;
         if (m_front == m_capacity) {
@@ -205,10 +225,37 @@ public:
     constexpr const_iterator cend() const { return const_iterator(*this, m_size); }
 
 private:
+    constexpr size_t growCapacityFor(size_t required) const {
+        size_t newCapacity = m_capacity;
+
+        if (newCapacity == 0) {
+            newCapacity = 1;
+        }
+
+        while (newCapacity < required) {
+            newCapacity *= GROWTH_FACTOR;
+        }
+
+        return newCapacity;
+    }
+
+    constexpr void unchecked_push(T&& item) {
+        m_allocator.construct(m_data + m_back++, std::move(item));
+        if (m_back == m_capacity) {
+            m_back = 0;
+        }
+        m_size++;
+    }
+
+    constexpr void unchecked_push(const T& item) {
+        T copy = item;
+        unchecked_push(std::move(copy));
+    }
+
     size_t m_front = 0;
     size_t m_back = 0;
     size_t m_size = 0;
-    size_t m_capacity;
-    T* m_data;
+    size_t m_capacity = 0;
+    T* m_data = nullptr;
     Allocator<T> m_allocator;
 };

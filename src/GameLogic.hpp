@@ -9,7 +9,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
-#include <queue>
+#include <ranges>
 
 #include <absl/container/flat_hash_map.h>
 
@@ -17,6 +17,7 @@
 #include "CoordSystem.hpp"
 #include "PriorityQueue.hpp"
 #include "Queue.hpp"
+#include "StableQueue.hpp"
 
 static struct Stats {
     size_t iterations;
@@ -244,6 +245,69 @@ bool simulateTrain(
     return false;
 }
 
+Direction getStepDirection(
+    const Grid& grid,
+    const DeadState& currentState,
+    const DeadState& prevState
+) {
+    Direction stepDir = Position::diffStep(prevState.player, currentState.player);
+    if (stepDir == NONE) {
+        assert(currentState.numToggledLevers() - prevState.numToggledLevers() > 0);
+        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+            if (grid.at(currentState.player + dir).isLever()) {
+                stepDir = dir;
+                break;
+            }
+        }
+        assert(stepDir != NONE);
+    }
+    return stepDir;
+}
+
+using StateQueue = StableQueue<PriorityQueue, State, DeadState, uint32_t>;
+using PosQueue = StableQueue<Queue, DeadState, DeadState, uint8_t, false>;
+
+std::vector<Direction> buildSolution(
+    const Grid& grid,
+    const StateQueue& queue,
+    const PosQueue& posQueue,
+    const State& lastState
+) {
+    std::vector<Direction> solution;
+
+    Direction stepDir = getStepDirection(grid, lastState, posQueue.peek());
+    solution.push_back(stepDir);
+
+    PosQueue::IndexType currentPosIndex = posQueue.peekIndex();
+    while (true) {
+        PosQueue::IndexType prevIndex = posQueue.getPrevIndex(currentPosIndex);
+        if (prevIndex == PosQueue::NO_INDEX) {
+            break;
+        }
+        const DeadState prevState = posQueue.at(prevIndex);
+        const DeadState currentState = posQueue.at(currentPosIndex);
+        Direction stepDir = getStepDirection(grid, currentState, prevState);
+        solution.push_back(stepDir);
+        currentPosIndex = prevIndex;
+    }
+    
+    StateQueue::IndexType currentIndex = queue.peekIndex();
+    while (true) {
+        StateQueue::IndexType prevIndex = queue.getPrevIndex(currentIndex);
+        if (prevIndex == StateQueue::NO_INDEX) {
+            break;
+        }
+        const DeadState prevState = queue.at(prevIndex);
+        const DeadState currentState = queue.at(currentIndex);
+        Direction stepDir = getStepDirection(grid, currentState, prevState);
+        solution.push_back(stepDir);
+        currentIndex = prevIndex;
+    }
+
+    std::reverse(solution.begin(), solution.end());
+    return solution;
+}
+
 std::vector<Direction> search(
     const Grid& grid,
     const StartList& startList,
@@ -251,30 +315,35 @@ std::vector<Direction> search(
     const std::atomic_bool& done = {}
 ) {
     absl::flat_hash_map<StateEncoding, Rank> visited(5000000);
-    PriorityQueue<State> queue(1000000);
+    StateQueue queue(1000000, 5000000);
 
     Rank bestRank = std::numeric_limits<Rank>::max();
     std::vector<Direction> bestMoves;
-
-    struct Action {
-        Position pos;
-        std::vector<Direction> moves;
-    };
+    
+    constexpr size_t MAX_NEXT_STATES = MAX_OBJECTS * MAX_DIR + MAX_LEVERS;
+    // Based on max number of elements we could possibly see in the queue.
+    constexpr size_t MAX_POS_QUEUE_SIZE = MAX_OBJECTS * 2;
+    constexpr size_t POS_QUEUE_SIZE = std::max(MAX_POS_QUEUE_SIZE, MAX_NEXT_STATES);
 
     std::array<std::array<bool, 16>, 16> posVisited = {};
-    Queue<Action> actionQueue(BASE);
+    PosQueue posQueue(POS_QUEUE_SIZE, BASE);
+    std::array<uint8_t, BASE> posRanks = {};
     std::vector<Position> movable = grid.getAllMovable();
+
+    std::vector<std::pair<State, PosQueue::IndexType>> nextStates;
+    nextStates.reserve(MAX_NEXT_STATES);
+    
     for (auto& row : posVisited) {
         row.fill(true);
     }
 
-    queue.insert(initialState);
+    queue.push(initialState);
     visited[initialState.encode(grid.objectCount)] = initialState.rank;
 
     stats.iterations = 0;
 
     while (!queue.empty()) {
-        const State currentState = queue.extract_min();
+        const State& currentState = queue.peek();
 
         if (currentState.rank > bestRank) {
             break;
@@ -285,26 +354,36 @@ std::vector<Direction> search(
             if (done) {
                 break;
             }
-            std::cout << std::format("\rStates checked: {}. Queue size: {}. Visited cache: {}. ", stats.iterations, queue.size(), visited.size());
+            std::cout << std::format(
+                "\rStates checked: {}. Queue size: {}. Queue dead size: {}. Visited cache: {}. ",
+                stats.iterations,
+                queue.totalSize(),
+                queue.deadSize(),
+                visited.size()
+            );
             std::cout.flush();
         }
 
         for (Position pos : movable) {
             posVisited[pos.y()][pos.x()] = false;
         }
-        actionQueue.clear();
-        actionQueue.push({currentState.player, {}});
+        posQueue.clear();
+        nextStates.clear();
 
-        while (!actionQueue.empty()) {
-            const auto [pos, moves] = actionQueue.pop();
-            bool& used = posVisited[pos.y()][pos.x()];
+        posRanks[posQueue.totalSize()] = 0;
+        posQueue.push(currentState);
+
+        while (!posQueue.empty()) {
+            const auto& posState = posQueue.peek();
+            bool& used = posVisited[posState.player.y()][posState.player.x()];
             if (used) {
+                posQueue.removeFront();
                 continue;
             }
             used = true;
 
             for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
-                const auto nextMove = pos + dir;
+                const auto nextMove = posState.player + dir;
                 if (posVisited[nextMove.y()][nextMove.x()]) {
                     continue;
                 }
@@ -312,9 +391,10 @@ std::vector<Direction> search(
                 const auto [nextCell, nextObjIndex] = grid.at(currentState, nextMove);
                 if (nextCell.isMovable()) {
                     if (nextCell == FLOOR) {
-                        Action action = {nextMove, moves};
-                        action.moves.push_back(dir);
-                        actionQueue.push(std::move(action));
+                        auto nextPosState = posState;
+                        nextPosState.player = nextMove;
+                        posRanks[posQueue.totalSize()] = posRanks[posQueue.peekIndex()] + 1;
+                        posQueue.push(std::move(nextPosState));
                     }
                     else if (nextCell.isTrack()) {
                         const auto nextNextMove = nextMove + dir;
@@ -331,13 +411,11 @@ std::vector<Direction> search(
                             nextState.objects[nextObjIndex] = FLOOR;
                         }
 
-                        nextState.rank += Rank(moves.size() + 1);
+                        nextState.rank += Rank(posRanks[posQueue.peekIndex()] + 1);
                         auto [it, inserted] = visited.try_emplace(nextState.encode(grid.objectCount), nextState.rank);
                         if (inserted || it->second > nextState.rank) {
                             it->second = nextState.rank;
-                            nextState.moves.append_range(moves);
-                            nextState.moves.push_back(dir);
-                            queue.insert(std::move(nextState));
+                            nextStates.push_back({std::move(nextState), posQueue.peekIndex()});
                         }
                     }
                 }
@@ -347,27 +425,34 @@ std::vector<Direction> search(
                     simulateTrain(grid, startList, currentState, nextCell.index())
                 ) {
                     State nextState = currentState;
-                    nextState.player = pos;
+                    nextState.player = posState.player;
                     nextState.toggleLever(nextCell.index());
-                    nextState.rank += Rank(moves.size() + 1);
-                    nextState.moves.append_range(moves);
-                    nextState.moves.push_back(dir);
+                    nextState.rank += Rank(posRanks[posQueue.peekIndex()] + 1);
 
                     if (nextState.numToggledLevers() == startList.size() && nextState.rank < bestRank) {
                         bestRank = nextState.rank;
-                        bestMoves = std::move(nextState.moves);
+                        bestMoves = buildSolution(grid, queue, posQueue, nextState);
                         std::cout << std::format("Found a solution with {} moves.\n", bestRank);
                     }
                     else {
                         auto [it, inserted] = visited.try_emplace(nextState.encode(grid.objectCount), nextState.rank);
                         if (inserted || it->second > nextState.rank) {
                             it->second = nextState.rank;
-                            queue.insert(std::move(nextState));
+                            nextStates.push_back({std::move(nextState), posQueue.peekIndex()});
                         }
                     }
                 }
             }
+
+            posQueue.removeFront();
         }
+
+        queue.removeFront();
+
+        posQueue.pushIndexedRange(nextStates);
+        posQueue.pruneDeadNodes();
+
+        queue.pushDeadQueue(posQueue, nextStates | std::views::keys);
     }
 
     stats.visited = visited.size();

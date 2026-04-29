@@ -1,4 +1,4 @@
-Runtime: 0.001736400 s
-Total iterations: 11
-visited size: 13
+Runtime: 0.002216700 s
+Total iterations: 36
+visited size: 41
 Solution: druullddl

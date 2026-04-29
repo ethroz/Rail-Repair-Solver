@@ -123,6 +123,23 @@ struct Position {
         m_bits = p.m_bits;
         return *this;
     }
+
+    static constexpr Direction diffStep(const Position& from, const Position& to) {
+        const int8_t dx = int8_t(to.x()) - int8_t(from.x());
+        const int8_t dy = int8_t(to.y()) - int8_t(from.y());
+        assert(((dx == -1 || dx == 1) && dy == 0) || ((dy == -1 || dy == 1) && dx == 0) || (dx == 0 && dy == 0));
+        switch(dx) {
+        case -1: return LEFT;
+        case  1: return RIGHT;
+        default: break;
+        }
+        switch(dy) {
+        case -1: return UP;
+        case  1: return DOWN;
+        default: return NONE;
+        }
+    }
+
     [[nodiscard]] friend inline constexpr bool operator==(Position a, Position b) { return a.m_bits == b.m_bits; }
     [[nodiscard]] friend inline constexpr bool operator!=(Position a, Position b) { return a.m_bits != b.m_bits; }
     

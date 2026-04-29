@@ -5,9 +5,9 @@
 #include <cassert>
 #include <cstdint>
 #include <format>
+#include <limits>
 #include <stdexcept>
 #include <utility>
-#include <vector>
 
 #include "CoordSystem.hpp"
 
@@ -81,10 +81,7 @@ public:
     std::array<Position, MAX_OBJECTS> objectPositions = {};
     Rank rank = 0;
     Position player = {};
-private:
     uint8_t leverBits = 0;
-public:
-    std::vector<Direction> moves{};
 
     constexpr bool leverToggled(uint8_t index) const {
         assert(index < MAX_LEVERS);
@@ -143,6 +140,37 @@ public:
     }
     friend constexpr bool operator<(const State& a, const State& b) { return a.rank < b.rank; }
 };
+
+struct DeadState {
+    Position player = {};
+
+    constexpr DeadState() = default;
+
+    constexpr DeadState(const State& state)
+#ifdef NDEBUG
+        : player{state.player} {}
+#else
+        : player{state.player}, leverBits{state.leverBits} {}
+    
+    uint8_t leverBits = 0;
+
+    constexpr bool leverToggled(uint8_t index) const {
+        assert(index < MAX_LEVERS);
+        return ((leverBits >> index) & 1) > 0;
+    }
+
+    constexpr void toggleLever(uint8_t index) {
+        assert(index < MAX_LEVERS);
+        leverBits ^= 1 << index;
+    }
+
+    constexpr int numToggledLevers() const {
+        return std::popcount(leverBits);
+    }
+#endif
+};
+
+static_assert(std::constructible_from<DeadState, State>);
 
 struct Grid {
 public:

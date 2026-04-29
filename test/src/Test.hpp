@@ -30,21 +30,46 @@ static std::vector<TestFixture*> tests;
 
 struct TestFixture {
 public:
-    TestFixture(std::string_view name) : m_name{name} {
+    TestFixture(std::string_view name, std::string file) :
+        m_name{name},
+        m_file{std::move(file)}
+    {
         tests.push_back(this);
     }
 
     [[nodiscard]] std::string_view name() const { return m_name; }
-    [[nodiscard]] bool passed() const { return !failed; }
+    [[nodiscard]] bool passed() const { return !m_failed; }
     [[nodiscard]] bool disabled() const { return m_disabled; }
     void disable() { m_disabled = true; }
 
-    virtual void runTest() = 0;
+    virtual void run() final {
+        try {
+            runImpl();
+        }
+        catch (const TestException& e) {
+            std::cerr << e.what() << std::endl;
+        }
+        catch (const std::exception& e) {
+            m_failed = true;
+            std::cerr << "Test threw exception: " << e.what() << std::endl;
+            std::cerr << m_file << std::endl;
+        }
+        catch (...) {
+            m_failed = true;
+            std::cerr << "Test threw unknown exception" << std::endl;
+            std::cerr << m_file << std::endl;
+        }
+    }
+
+protected:
+    virtual void runImpl() = 0;
     
-    bool failed = false;
+    bool m_failed = false;
+
 private:
     bool m_disabled = false;
     const std::string_view m_name;
+    const std::string m_file;
 };
 
 template<typename T>
@@ -79,22 +104,30 @@ struct ColorScope {
 // Defines
 
 #define TEST(x) struct Fixture_##x : public TestFixture { \
-public: Fixture_##x(std::string_view name) : TestFixture(name) {} \
-void runTest() override; \
+public: Fixture_##x() : TestFixture(#x, std::format("{}:{}", __FILE__, __LINE__)) {} \
+void runImpl() override; \
 }; \
-static Fixture_##x fix_##x(#x); \
-void Fixture_##x::runTest()
+static Fixture_##x fix_##x{}; \
+void Fixture_##x::runImpl()
 
-#define EXPECT_EQ(x, y) if (x != y) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' != '{}'\n{} != {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
-#define EXPECT_NE(x, y) if (x == y) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' == '{}'\n{} == {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
-#define EXPECT_TRUE(x) if (!x) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' is false", __FILE__, __LINE__, #x) << std::endl; }
-#define EXPECT_FALSE(x) if (x) { failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' is true", __FILE__, __LINE__, #x) << std::endl; }
-#define ASSERT_EQ(x, y) if (x != y) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' != '{}'\n{} != {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
-#define ASSERT_NE(x, y) if (x == y) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' == '{}'\n{} == {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
-#define ASSERT_TRUE(x) if (!x) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' is false", __FILE__, __LINE__, #x)); }
-#define ASSERT_FALSE(x) if (x) { failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' is true", __FILE__, __LINE__, #x)); }
-#define FAIL() if (true) { failed = true; throw TestException(std::format("Failed at {}:{}", __FILE__, __LINE__)); }
-#define EXPECT_THROW(x, ex) try { (void)x; failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' did not throw '{}'", __FILE__, __LINE__, #x, #ex) << std::endl; } catch (const ex&) {}
+#define EXPECT_EQ(x, y) if (x != y) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' != '{}'\n{} != {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_NE(x, y) if (x == y) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' == '{}'\n{} == {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_LT(x, y) if (x >= y) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' >= '{}'\n{} >= {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_LE(x, y) if (x >  y) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' > '{}'\n{} > {}",   __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_GT(x, y) if (x <= y) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' <= '{}'\n{} <= {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_GE(x, y) if (x <  y) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' < '{}'\n{} < {}",   __FILE__, __LINE__, #x, #y, toString(x), toString(y)) << std::endl; }
+#define EXPECT_TRUE(x)  if (!x) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' is false", __FILE__, __LINE__, #x) << std::endl; }
+#define EXPECT_FALSE(x) if (x) { m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' is true",   __FILE__, __LINE__, #x) << std::endl; }
+#define ASSERT_EQ(x, y) if (x != y) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' != '{}'\n{} != {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_NE(x, y) if (x == y) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' == '{}'\n{} == {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_LT(x, y) if (x >= y) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' >= '{}'\n{} >= {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_LE(x, y) if (x >  y) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' > '{}'\n{} > {}",   __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_GT(x, y) if (x <= y) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' <= '{}'\n{} <= {}", __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_GE(x, y) if (x <  y) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' < '{}'\n{} < {}",   __FILE__, __LINE__, #x, #y, toString(x), toString(y))); }
+#define ASSERT_TRUE(x)  if (!x) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' is false", __FILE__, __LINE__, #x)); }
+#define ASSERT_FALSE(x) if (x) { m_failed = true; throw TestException(std::format("Failed assert at {}:{}\n'{}' is true",   __FILE__, __LINE__, #x)); }
+#define FAIL() { m_failed = true; throw TestException(std::format("Failed at {}:{}", __FILE__, __LINE__)); }
+#define EXPECT_THROW(x, ex) try { (void)x; m_failed = true; std::cerr << std::format("Failed at {}:{}\n'{}' did not throw '{}'", __FILE__, __LINE__, #x, #ex) << std::endl; } catch (const ex&) {}
 
 // Main function.
 
@@ -144,21 +177,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::cout << std::format("Running {}", test->name()) << std::endl;
-
-        try {
-            test->runTest();
-        }
-        catch (const TestException& e) {
-            std::cerr << e.what() << std::endl;
-        }
-        catch (const std::exception& e) {
-            test->failed = true;
-            std::cerr << "Test threw exception: " << e.what() << std::endl;
-        }
-        catch (...) {
-            test->failed = true;
-            std::cerr << "Test threw unknown exception" << std::endl;
-        }
+        test->run();
 
         (test->passed() ? pass() : fail()) << std::format(" {}\n", test->name()) << std::endl;
         if (!test->passed()) {
