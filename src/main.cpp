@@ -5,12 +5,17 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <stdexcept>
+#include <thread>
 
 #include "GameLogic.hpp"
 
 static std::atomic_bool done = false;
+
+static std::string inputLine;
+static std::atomic<bool> hasInput = false;
 
 static const std::filesystem::path repoPath = std::filesystem::canonical(
     std::filesystem::path(__FILE__) / ".." / ".."
@@ -77,6 +82,28 @@ bool solveLevel(const std::string& levelStr, bool saveResult = true) {
 int main(int argc, char* argv[]) {
     std::signal(SIGINT, sigHandler);
 
+    std::jthread inputThread([]() {
+        while (!done) {
+            std::string line;
+            if (std::getline(std::cin, line)) {
+                std::istringstream iss(line);
+                std::string temp;
+                if (iss >> temp) {
+                    while (hasInput && !done) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    }
+                    if (done) {
+                        break;
+                    }
+                    inputLine = temp;
+                    hasInput = true;
+                }
+            } else {
+                done = true;
+            }
+        }
+    });
+
     std::string levelStr;
     bool saveResult = true;
     for (int i = 1; i < argc; ++i) {
@@ -95,13 +122,18 @@ int main(int argc, char* argv[]) {
 
     if (levelStr.empty()) {
         while (!done) {
+            std::cout << "Choose a level: ";
+            while (!done && !hasInput) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            if (done) break;
+            levelStr = inputLine;
+            hasInput = false;
+            if (levelStr.empty()) {
+                std::cout << std::endl;
+                break;
+            }
             try {
-                std::cout << "Choose a level: ";
-                std::cin >> levelStr;
-                if (levelStr.empty()) {
-                    std::cout << std::endl;
-                    break;
-                }
                 solveLevel(levelStr, saveResult);
             }
             catch (const std::exception& e) {
