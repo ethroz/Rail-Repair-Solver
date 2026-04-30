@@ -1,4 +1,4 @@
-Runtime: 10.126941200 s
-Total iterations: 26327982
-visited size: 26793935
+Runtime: 9.689576500 s
+Total iterations: 4323433
+visited size: 3977444
 Solution: drurrdrrullllruuuulldrurdddldllurrdrrdrrullluuuluurddddllddrulurdrudrdrrullrulrrlluulurdddldllurrdrurrdluluuluurddduurrdluldrruu

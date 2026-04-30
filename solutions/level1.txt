@@ -1,4 +1,4 @@
-Runtime: 0.025914100 s
+Runtime: 0.001404100 s
 Total iterations: 5
 visited size: 5
 Solution: uurrdd
