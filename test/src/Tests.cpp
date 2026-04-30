@@ -802,6 +802,28 @@ TEST(StableQueue_PriorityQueue_SingleElementPriorityQueueCanBecomeDead) {
     EXPECT_THROW(q.push(20), std::invalid_argument);
 }
 
+TEST(StableQueue_PriorityQueue_RemoveFrontPreservesIndices) {
+    PriorityStableQueue q;
+
+    q.push(0);
+    q.push(1);
+    q.push(2);
+    
+    q.removeFront();
+
+    q.push(3);
+
+    q.removeFront();
+    q.removeFront();
+
+    std::vector<int> chain;
+    for (const int item : q) {
+        chain.push_back(item);
+    }
+
+    EXPECT_EQ((std::vector<int>{3, 1, 0}), chain);
+}
+
 TEST(StableQueue_PriorityQueue_AutoPrunePriorityQueueRejectsFrontMovingPush) {
     AutoPrunePriorityStableQueue q(1, 1, 1);
 

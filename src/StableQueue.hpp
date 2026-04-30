@@ -103,6 +103,7 @@ public:
         }
         const IndexType prevIndex = peekIndex();
         m_prevIndex.insert(m_prevIndex.begin() + m_dead.size() + m_alive.size(), prevIndex);
+        const PushSwapGuard guard(*this);
         m_alive.push(std::forward<Alive>(item));
         checkInvariants();
     }
@@ -116,6 +117,7 @@ public:
         }
         const IndexType prevIndex = peekIndex();
         m_prevIndex.insert(m_prevIndex.begin() + m_dead.size() + m_alive.size(), prevIndex);
+        const PushSwapGuard guard(*this);
         m_alive.push(item);
         checkInvariants();
     }
@@ -145,6 +147,17 @@ public:
             throw std::runtime_error("Cannot remove front from an empty queue");
         }
         m_dead.push_back(Dead(m_alive.pop()));
+        if constexpr (Swappable) {
+            // Cycle the array around
+            assert(m_dead.size() > 0);
+            const size_t lastDead = m_dead.size() - 1;
+            size_t lastIndex = lastDead + m_alive.size();
+            IndexType frontIndex = std::move(m_prevIndex[lastIndex]);
+            for (; lastIndex > lastDead; --lastIndex) {
+                m_prevIndex[lastIndex] = std::move(m_prevIndex[lastIndex - 1]);
+            }
+            m_prevIndex[lastDead] = std::move(frontIndex);
+        }
         checkInvariants();
     }
 
@@ -491,14 +504,25 @@ private:
     > requires ValidStableQueue<OtherQueue, OtherAlive, OtherDead, OtherIndex>
     friend class StableQueue;
 
+    struct PushSwapGuard {
+        StableQueue& q;
+        constexpr explicit PushSwapGuard(StableQueue& q) : q(q) {
+            q.m_rejectFrontSwap = true;
+        }
+        constexpr ~PushSwapGuard() {
+            q.m_rejectFrontSwap = false;
+        }
+    };
+
     struct Swapper {
         StableQueue& queue;
 
         // Called by Queue when it swaps alive slots lhs/rhs.
         // Keeps m_prevIndex aligned with the alive storage order.
         constexpr void operator()(size_t lhs, size_t rhs) {
-            if (lhs == 0 || rhs == 0) {
-                throw std::invalid_argument("Cannot move the front node of the queue");
+            assert(lhs != rhs);
+            if (queue.m_rejectFrontSwap && (lhs == 0 || rhs == 0)) {
+                throw std::invalid_argument("Cannot push an item that would move the StableQueue front node");
             }
             const size_t offset = queue.m_dead.size();
             std::swap(queue.m_prevIndex[offset + lhs], queue.m_prevIndex[offset + rhs]);
@@ -509,4 +533,5 @@ private:
     std::vector<Dead> m_dead;
     std::vector<IndexType> m_prevIndex;
     size_t m_extraRefs = 0;
+    bool m_rejectFrontSwap = false;
 };

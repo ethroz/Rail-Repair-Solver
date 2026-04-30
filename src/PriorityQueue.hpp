@@ -111,6 +111,7 @@ public:
         }
 
         m_data.front() = std::move(m_data.back());
+        m_swapFn(0, m_data.size() - 1);
         m_data.pop_back();
 
         bubbleDown(0);
