@@ -5,42 +5,42 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <iostream>
 #include <limits>
 #include <ranges>
 #include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 template<class Q, class T>
 concept StableQueueStorage =
     std::constructible_from<Q, size_t> &&
-    requires(Q queue, const Q constQueue, T item, size_t index, std::span<T> range) {
+    requires(Q queue, const Q& constQueue, T item, std::span<T> range) {
         { constQueue.size() } -> std::convertible_to<size_t>;
         { constQueue.capacity() } -> std::convertible_to<size_t>;
         { constQueue.empty() } -> std::convertible_to<bool>;
         queue.clear();
+        queue.push(item);
         queue.push(std::move(item));
         queue.pushRange(range);
-        { constQueue.at(index) } -> std::same_as<const T&>;
         { constQueue.peek() } -> std::same_as<const T&>;
         { queue.pop() } -> std::convertible_to<T>;
     };
-
-template<template<class> class Q, class A, class D, typename I>
+    
+template<template<class...> class Q, class A, class D, typename I>
 concept ValidStableQueue = 
     StableQueueStorage<Q<A>, A> &&
-    std::constructible_from<D, const A&> &&
+    std::constructible_from<D, A> &&
     std::unsigned_integral<I>;
 
-template<class Q>
+template<class Q, class F>
 concept AcceptsSwap =
-    std::constructible_from<Q, size_t, std::function<void(size_t, size_t)>>;
+    std::constructible_from<Q, size_t, F>;
 
 template<
-    template<class> class Queue,
+    template<class...> class Queue,
     class Alive,
     class Dead = Alive,
     typename Index = size_t,
@@ -48,29 +48,32 @@ template<
 > requires ValidStableQueue<Queue, Alive, Dead, Index>
 class StableQueue {
 private:
-    static constexpr Queue<Alive> makeAlive(size_t aliveCap, StableQueue& self)
-        requires AcceptsSwap<Queue<Alive>>
+    struct Swapper;
+    static constexpr bool Swappable = AcceptsSwap<Queue<Alive>, Swapper>;
+    
+    using IndexType = Index;
+    static constexpr IndexType NO_INDEX = std::numeric_limits<IndexType>::max();
+
+    static inline Queue<Alive> makeAlive(size_t aliveCap, StableQueue& self)
+        requires (Swappable)
     {
         return Queue<Alive>(aliveCap, Swapper{self});
     }
 
-    static constexpr Queue<Alive> makeAlive(size_t aliveCap, StableQueue&)
-        requires (!AcceptsSwap<Queue<Alive>>)
+    static inline Queue<Alive> makeAlive(size_t aliveCap, StableQueue&)
+        requires (!Swappable)
     {
         return Queue<Alive>(aliveCap);
     }
 
 public:
-    using IndexType = Index;
-    static constexpr IndexType NO_INDEX = std::numeric_limits<IndexType>::max();
+    inline StableQueue(size_t capacity = 2) : StableQueue(capacity / 2, capacity / 2) {}
 
-    constexpr StableQueue(size_t capacity = 2) : StableQueue(capacity / 2, capacity / 2) {}
-
-    constexpr StableQueue(size_t aliveCap, size_t deadCap) :
-        m_alive(makeAlive(std::max(aliveCap, size_t(1)), *this))
+    inline StableQueue(size_t aliveCap, size_t deadCap, size_t extraCap = 0) :
+        m_alive(makeAlive(std::max<size_t>(aliveCap, 1), *this))
     {
-        m_dead.reserve(std::max(deadCap, size_t(1)));
-        m_prevIndex.reserve(m_alive.capacity() + m_dead.capacity());
+        m_dead.reserve(std::max<size_t>(deadCap, 1));
+        m_prevIndex.reserve(m_alive.capacity() + m_dead.capacity() + extraCap);
     }
 
     StableQueue(const StableQueue&) = delete;
@@ -79,65 +82,55 @@ public:
     StableQueue(StableQueue&&) = delete;
     StableQueue& operator=(StableQueue&&) = delete;
 
-    [[nodiscard]] constexpr size_t totalSize() const { return m_prevIndex.size(); }
-    [[nodiscard]] constexpr size_t aliveSize() const { return m_alive.size(); }
+    [[nodiscard]] constexpr size_t size() const { return m_alive.size(); }
     [[nodiscard]] constexpr size_t deadSize() const { return m_dead.size(); }
     [[nodiscard]] constexpr bool empty() const { return m_alive.empty(); }
+    [[nodiscard]] constexpr bool isDead() const { return !m_dead.empty() && m_alive.empty(); }
 
-    constexpr void clear() {
+    constexpr void reset() {
         m_alive.clear();
         m_dead.clear();
         m_prevIndex.clear();
-    }
-
-    [[nodiscard]] constexpr IndexType peekIndex() const {
-        return empty() ? NO_INDEX : indexCast(m_dead.size());
+        m_extraRefs = 0;
     }
 
     constexpr void push(Alive&& item) {
+        if (isDead()) {
+            throw std::invalid_argument("Cannot push onto a dead queue");
+        }
+        if constexpr (AutoPrune) {
+            pruneBeforeGrowth(1);
+        }
+        const IndexType prevIndex = peekIndex();
+        m_prevIndex.insert(m_prevIndex.begin() + m_dead.size() + m_alive.size(), prevIndex);
+        m_alive.push(std::forward<Alive>(item));
+        checkInvariants();
+    }
+
+    constexpr void push(const Alive& item) requires std::copy_constructible<Alive> {
+        if (isDead()) {
+            throw std::invalid_argument("Cannot push onto a dead queue");
+        }
+        if constexpr (AutoPrune) {
+            pruneBeforeGrowth(1);
+        }
+        const IndexType prevIndex = peekIndex();
+        m_prevIndex.insert(m_prevIndex.begin() + m_dead.size() + m_alive.size(), prevIndex);
+        m_alive.push(item);
+        checkInvariants();
+    }
+
+    constexpr void addRefForFront() {
+        if (empty()) {
+            throw std::runtime_error("Cannot ref the front of an empty queue");
+        }
         if constexpr (AutoPrune) {
             pruneBeforeGrowth(1);
         }
         const IndexType prevIndex = peekIndex();
         m_prevIndex.push_back(prevIndex);
-        m_alive.push(std::move(item));
+        ++m_extraRefs;
         checkInvariants();
-    }
-
-    constexpr void push(const Alive& item) {
-        Alive copy = item;
-        push(std::move(copy));
-    }
-
-    template <std::ranges::input_range R>
-    requires std::constructible_from<
-                 std::pair<Alive, Index>,
-                 std::ranges::range_reference_t<R>
-             > && std::ranges::sized_range<R>
-    constexpr void pushIndexedRange(R&& rng) {
-        if constexpr (AutoPrune) {
-            pruneBeforeGrowth(size_t(std::ranges::size(rng)));
-        }
-        m_prevIndex.append_range(rng | std::views::values);
-        m_alive.pushRange(rng | std::views::keys);
-        checkInvariants();
-    }
-
-    [[nodiscard]] constexpr Dead at(IndexType index) const {
-        if (index >= m_prevIndex.size()) {
-            throw std::invalid_argument("Index out of range");
-        }
-        if (index < m_dead.size()) {
-            return m_dead[index];
-        }
-        return Dead(m_alive.at(index));
-    }
-
-    [[nodiscard]] constexpr IndexType getPrevIndex(IndexType index) const {
-        if (index >= m_prevIndex.size()) {
-            throw std::invalid_argument("Index out of range");
-        }
-        return m_prevIndex[index];
     }
 
     [[nodiscard]] constexpr const Alive& peek() const {
@@ -151,74 +144,93 @@ public:
         if (empty()) {
             throw std::runtime_error("Cannot remove front from an empty queue");
         }
-        auto it = m_dead.insert(m_dead.end(), Dead{});
-        *it = Dead(m_alive.pop());
+        m_dead.push_back(Dead(m_alive.pop()));
         checkInvariants();
     }
 
     template<
-        template<class> class DeadQueue,
-        typename DeadIndex,
-        bool DeadAutoPrune,
+        template<class> class SubQueue,
+        typename SubAlive,
+        typename SubDead,
+        typename SubIndex,
+        bool SubAutoPrune,
         std::ranges::input_range R
-    > requires (sizeof(DeadIndex) <= sizeof(Index)) && std::ranges::sized_range<R>
-    constexpr void pushDeadQueue(
-        const StableQueue<DeadQueue, Dead, Dead, DeadIndex, DeadAutoPrune>& deadQueue,
+    > requires
+        std::convertible_to<SubDead, Dead> &&
+        (sizeof(SubIndex) <= sizeof(Index)) &&
+        std::ranges::sized_range<R> &&
+        std::constructible_from<
+            Alive,
+            std::ranges::range_reference_t<R>
+        >
+    constexpr void removeFrontWithDeadSubqueue(
+        const StableQueue<SubQueue, SubAlive, SubDead, SubIndex, SubAutoPrune>& subqueue,
         R&& items
     ) {
-        if (m_dead.empty() || deadQueue.deadSize()) {
-            throw std::runtime_error("Cannot push a dead queue if either of them have no dead items");
+        using SubQueueType = std::remove_cvref_t<decltype(subqueue)>;
+        const size_t itemsSize = size_t(std::ranges::size(items));
+
+        if (itemsSize != subqueue.m_extraRefs) {
+            throw std::invalid_argument("There should be as many extra refs as items in the subqueue");
         }
 
-        const auto itemsSize = size_t(std::ranges::size(items));
-        if (itemsSize != deadQueue.aliveSize()) {
-            throw std::invalid_argument("The items must be alive in the dead queue");
-        }
-
-        if (deadQueue.empty()) {
+        if (itemsSize == 0) {
+            removeFront();
             return;
         }
 
+        if (!subqueue.isDead()) {
+            throw std::invalid_argument("Cannot push an alive subqueue");
+        }
+        assert(subqueue.deadSize() > 0);
+
+        const size_t numDeadToKeep = subqueue.deadSize() - 1;
+
         if constexpr (AutoPrune) {
-            pruneBeforeGrowth(deadQueue.deadSize() + itemsSize);
+            pruneBeforeGrowth(numDeadToKeep + itemsSize);
         }
 
-        const IndexType deadRoot = indexCast(m_dead.size()) - 1;
-        const IndexType offset = indexCast(deadQueue.deadSize()) - 1;
+        removeFront();
+        assert(!m_dead.empty());
 
-        m_prevIndex.insert(m_prevIndex.begin() + m_dead.size(), size_t(offset), {});
-        m_dead.insert(m_dead.end(), size_t(offset), {});
-        for (size_t i = 1; i < deadQueue.deadSize(); ++i) {
-            m_dead[size_t(deadRoot) + i] = deadQueue.m_dead[i];
-            m_prevIndex[size_t(deadRoot) + i] = IndexType(deadQueue.m_prevIndex[i]) + deadRoot;
-        }
+        const IndexType rootIndex = indexCast(m_dead.size()) - 1;
+        m_prevIndex.insert_range(
+            m_prevIndex.begin() + m_dead.size(),
+            subqueue.m_prevIndex |
+            std::views::drop(1) |
+            std::views::take(numDeadToKeep) |
+            std::views::transform([&](auto&& i) {
+                assert(i != SubQueueType::NO_INDEX);
+                return IndexType(i) + rootIndex;
+            })
+        );
+        m_dead.append_range(subqueue.m_dead | std::views::drop(1));
 
-        const size_t oldIndexSize = m_prevIndex.size();
-        for (size_t i = m_dead.size(); i < oldIndexSize; ++i) {
-            if (m_prevIndex[i] > deadRoot) {
-                m_prevIndex[i] += offset;
-            }
-        }
-
-        m_prevIndex.insert(m_prevIndex.end(), itemsSize, {});
-        for (size_t i = 0; i < itemsSize; ++i) {
-            m_prevIndex[oldIndexSize + i] = IndexType(deadQueue.m_prevIndex[deadQueue.deadSize() + i]) + deadRoot;
-        }
-        m_alive.pushRange(items);
+        assert(subqueue.size() == 0);
+        m_prevIndex.append_range(
+            subqueue.m_prevIndex |
+            std::views::drop(subqueue.deadSize()) |
+            std::views::transform([&](auto&& i) {
+                assert(i != SubQueueType::NO_INDEX);
+                return IndexType(i) + rootIndex;
+            })
+        );
+        m_alive.pushRange(std::forward<R>(items));
 
         checkInvariants();
     }
 
-    constexpr void pruneDeadNodes() {
+    constexpr void pruneDead() {
         const IndexType oldDeadSize = indexCast(m_dead.size());
-        const IndexType oldAliveSize = indexCast(m_alive.size());
+        const IndexType aliveSize = indexCast(m_alive.size() + m_extraRefs);
         const IndexType oldSize = indexCast(m_prevIndex.size());
 
         checkInvariants();
 
         if (oldSize == 0) {
-            m_alive.clear();
-            m_dead.clear();
+            m_alive.clear(); // Allows the queue to reset itself.
+            assert(m_dead.empty());
+            assert(m_extraRefs == 0);
             return;
         }
 
@@ -262,11 +274,10 @@ public:
         }
 
         const IndexType newDeadSize = writeDeadIndex;
-        const IndexType deadRemoved = oldDeadSize - newDeadSize;
 
-        for (IndexType aliveOffset = 0; aliveOffset < oldAliveSize; ++aliveOffset) {
-            const IndexType oldIndex = oldDeadSize + aliveOffset;
-            const IndexType newIndex = newDeadSize + aliveOffset;
+        for (IndexType i = 0; i < aliveSize; ++i) {
+            const IndexType oldIndex = oldDeadSize + i;
+            const IndexType newIndex = newDeadSize + i;
 
             remap[oldIndex] = newIndex;
 
@@ -281,7 +292,7 @@ public:
         );
 
         m_prevIndex.erase(
-            m_prevIndex.begin() + newDeadSize + oldAliveSize,
+            m_prevIndex.begin() + newDeadSize + aliveSize,
             m_prevIndex.end()
         );
 
@@ -299,14 +310,82 @@ public:
 
             m_prevIndex[i] = newPrevIndex;
         }
+
+        checkInvariants();
     }
 
+    struct chain_iterator {
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = Dead;
+        using reference = value_type;
+        using pointer = void;
+        using const_reference = const reference;
+        using const_pointer = const pointer;
+
+        constexpr chain_iterator(const StableQueue& owner, StableQueue::IndexType index) :
+            m_owner(owner),
+            m_index(index)
+        {}
+
+        constexpr reference operator*() const { return m_owner.at(m_index); }
+
+        constexpr chain_iterator& operator++() { m_index = m_owner.getPrevIndex(m_index); return *this; }
+        constexpr chain_iterator operator++(int) { chain_iterator temp = *this; ++(*this); return temp; }
+
+        constexpr friend bool operator==(const chain_iterator& a, const chain_iterator& b) {
+            assert(&a.m_owner == &b.m_owner);
+            return a.m_index == b.m_index;
+        }
+
+        constexpr friend bool operator!=(const chain_iterator& a, const chain_iterator& b) {
+            assert(&a.m_owner == &b.m_owner);
+            return a.m_index != b.m_index;
+        }
+
+    private:
+        const StableQueue& m_owner;
+        StableQueue::IndexType m_index;
+    };
+
+    constexpr chain_iterator begin() const { return chain_iterator(*this, peekIndex()); }
+    constexpr chain_iterator end() const { return chain_iterator(*this, NO_INDEX); }
+
 private:
-    static constexpr IndexType indexCast(size_t value) {
+    [[nodiscard]] static constexpr IndexType indexCast(size_t value) {
         if (value >= size_t(NO_INDEX)) {
             throw std::overflow_error("StableQueue index overflow");
         }
         return IndexType(value);
+    }
+
+    [[nodiscard]] constexpr IndexType peekIndex() const {
+        return empty() ? NO_INDEX : indexCast(m_dead.size());
+    }
+
+    [[nodiscard]] constexpr IndexType getPrevIndex(IndexType index) const {
+        if (index >= m_prevIndex.size()) {
+            throw std::invalid_argument("Index out of range");
+        }
+        return m_prevIndex[index];
+    }
+
+    [[nodiscard]] constexpr Dead at(IndexType index) const {
+        if (index == NO_INDEX) {
+            throw std::invalid_argument("Index out of range");
+        }
+
+        if (size_t(index) < m_dead.size()) {
+            return m_dead[index];
+        }
+
+        if (size_t(index) == m_dead.size()) {
+            if (m_alive.empty()) {
+                throw std::invalid_argument("There are no alive items available");
+            }
+            return Dead(m_alive.peek());
+        }
+
+        throw std::invalid_argument("Index out of range");
     }
 
     constexpr void pruneBeforeGrowth(size_t newElems) {
@@ -318,12 +397,12 @@ private:
 #ifdef VERBOSE_LOGS
         const size_t oldSize = m_prevIndex.size();
         const size_t oldDeadSize = m_dead.size();
-        const size_t oldAliveSize = m_alive.size();
+        const size_t aliveSize = m_alive.size();
 #endif
 
         const size_t oldCapacity = m_prevIndex.capacity();
 
-        pruneDeadNodes();
+        pruneDead();
 
         const size_t freeSlots = m_prevIndex.capacity() - m_prevIndex.size();
         const size_t minFreeSlots = std::max<size_t>(newElems, m_prevIndex.capacity() / 4);
@@ -339,7 +418,7 @@ private:
             << ", removed=" << removed
             << ", oldDead=" << oldDeadSize
             << ", newDead=" << m_dead.size()
-            << ", oldAlive=" << oldAliveSize
+            << ", oldAlive=" << aliveSize
             << ", newAlive=" << m_alive.size()
             << ", capacity=" << m_prevIndex.capacity()
             << ", freeSlots=" << freeSlots
@@ -375,14 +454,18 @@ private:
 
     constexpr void checkInvariants() const {
 #ifndef NDEBUG
-        assert(m_prevIndex.size() == m_dead.size() + m_alive.size());
+        assert(m_prevIndex.size() == m_dead.size() + m_alive.size() + m_extraRefs);
 
         for (size_t i = 0; i < m_prevIndex.size(); ++i) {
             const IndexType prevIndex = m_prevIndex[i];
 
-            if (prevIndex == NO_INDEX) {
+            if (i == 0) {
+                assert(prevIndex == NO_INDEX);
                 continue;
             }
+
+            // Revived queue error
+            assert(prevIndex != NO_INDEX);
 
             // Pruning remap error
             assert(size_t(prevIndex) < m_prevIndex.size());
@@ -400,7 +483,7 @@ private:
     }
 
     template<
-        template<class> class OtherQueue,
+        template<class...> class OtherQueue,
         class OtherAlive,
         class OtherDead,
         typename OtherIndex,
@@ -411,7 +494,12 @@ private:
     struct Swapper {
         StableQueue& queue;
 
+        // Called by Queue when it swaps alive slots lhs/rhs.
+        // Keeps m_prevIndex aligned with the alive storage order.
         constexpr void operator()(size_t lhs, size_t rhs) {
+            if (lhs == 0 || rhs == 0) {
+                throw std::invalid_argument("Cannot move the front node of the queue");
+            }
             const size_t offset = queue.m_dead.size();
             std::swap(queue.m_prevIndex[offset + lhs], queue.m_prevIndex[offset + rhs]);
         }
@@ -420,4 +508,5 @@ private:
     Queue<Alive> m_alive;
     std::vector<Dead> m_dead;
     std::vector<IndexType> m_prevIndex;
+    size_t m_extraRefs = 0;
 };

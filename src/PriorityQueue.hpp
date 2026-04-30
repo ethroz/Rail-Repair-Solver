@@ -11,12 +11,13 @@
 #include <vector>
 
 template<typename T, typename Compare = std::less<T>>
+requires std::move_constructible<T>
 class PriorityQueue {
 public:
     static constexpr size_t Arity = 4;
 
     using SwapFn = std::function<void(size_t, size_t)>;
-    constexpr PriorityQueue(size_t capacity = 1, SwapFn&& swapFn = [](auto&&...){}) :
+    inline PriorityQueue(size_t capacity = 1, SwapFn&& swapFn = [](auto&&...){}) :
         m_swapFn(std::move(swapFn))
     {
         if (!m_swapFn) {
@@ -43,14 +44,6 @@ public:
     constexpr void clear() noexcept {
         m_data.clear();
     }
-    
-    [[nodiscard]] constexpr T& at(size_t index) {
-        return m_data.at(index);
-    }
-
-    [[nodiscard]] constexpr const T& at(size_t index) const {
-        return m_data.at(index);
-    }
 
     [[nodiscard]] constexpr const T& peek() const {
         if (empty()) {
@@ -59,13 +52,13 @@ public:
         return m_data.front();
     }
 
-    constexpr void push(const T& item) {
-        m_data.push_back(item);
+    constexpr void push(T&& item) {
+        m_data.push_back(std::move(item));
         bubbleUp(m_data.size() - 1);
     }
 
-    constexpr void push(T&& item) {
-        m_data.push_back(std::move(item));
+    constexpr void push(const T& item) requires std::copy_constructible<T> {
+        m_data.push_back(item);
         bubbleUp(m_data.size() - 1);
     }
 

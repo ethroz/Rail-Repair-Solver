@@ -10,6 +10,7 @@
 #include "Allocator.hpp"
 
 template<typename T>
+requires std::move_constructible<T>
 class Queue {
 public:
     constexpr Queue(size_t capacity = 1) {
@@ -39,33 +40,30 @@ public:
         }
 
         T* newData = m_allocator.allocate(size);
+        size_t constructed = 0;
 
-        if (!empty()) {
-            m_allocator.construct(newData, m_size);
-            if (m_back <= m_front) {
-                const auto frontSize = m_capacity - m_front;
-                for (size_t i = 0; i < frontSize; i++) {
-                    std::swap(newData[i], m_data[m_front + i]);
-                }
-                for (size_t i = 0; i < m_back; i++) {
-                    std::swap(newData[frontSize + i], m_data[i]);
-                }
-                m_allocator.destroy(m_data + m_front, frontSize);
-                m_allocator.destroy(m_data, m_back);
-            }
-            else {
-                for (size_t i = 0; i < m_size; i++) {
-                    std::swap(newData[i], m_data[m_front + i]);
-                }
-                m_allocator.destroy(m_data + m_front, m_size);
+        try {
+            for (; constructed < m_size; constructed++) {
+                const size_t oldIndex = (m_front + constructed) % m_capacity;
+                m_allocator.construct(newData + constructed, std::move(m_data[oldIndex]));
             }
         }
+        catch (...) {
+            m_allocator.destroy(newData, constructed);
+            m_allocator.deallocate(&newData, size);
+            throw;
+        }
+
+        const size_t oldSize = m_size;
+
+        clear();
 
         m_allocator.deallocate(&m_data, m_capacity);
         m_data = newData;
         m_capacity = size;
         m_front = 0;
-        m_back = m_size;
+        m_back = oldSize;
+        m_size = oldSize;
     }
 
     constexpr void clear() {
@@ -117,9 +115,11 @@ public:
         unchecked_push(std::move(item));
     }
 
-    constexpr void push(const T& item) {
-        T copy = item;
-        push(std::move(copy));
+    constexpr void push(const T& item) requires std::copy_constructible<T> {
+        if (m_size == m_capacity) {
+            reserve(m_capacity * GROWTH_FACTOR);
+        }
+        unchecked_push(item);
     }
 
     template <std::ranges::input_range R>
@@ -217,8 +217,8 @@ public:
     };
 
     constexpr iterator begin() { return iterator(*this, 0); }
-    constexpr const_iterator begin() const { return const_iterator(*this, 0); }
     constexpr iterator end() { return iterator(*this, m_size); }
+    constexpr const_iterator begin() const { return const_iterator(*this, 0); }
     constexpr const_iterator end() const { return const_iterator(*this, m_size); }
 
     constexpr const_iterator cbegin() const { return const_iterator(*this, 0); }
@@ -239,17 +239,13 @@ private:
         return newCapacity;
     }
 
-    constexpr void unchecked_push(T&& item) {
-        m_allocator.construct(m_data + m_back++, std::move(item));
+    template<typename U>
+    constexpr void unchecked_push(U&& item) {
+        m_allocator.construct(m_data + m_back++, std::forward<U>(item));
         if (m_back == m_capacity) {
             m_back = 0;
         }
-        m_size++;
-    }
-
-    constexpr void unchecked_push(const T& item) {
-        T copy = item;
-        unchecked_push(std::move(copy));
+        ++m_size;
     }
 
     size_t m_front = 0;
