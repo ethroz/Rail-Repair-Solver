@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include "Queue.hpp"
+
 template<class Q, class T>
 concept StableQueueStorage =
     std::constructible_from<Q, size_t> &&
@@ -40,30 +42,30 @@ concept AcceptsSwap =
     std::constructible_from<Q, size_t, F>;
 
 template<
-    template<class...> class Queue,
+    template<class...> class MyQueue,
     class Alive,
     class Dead = Alive,
     typename Index = size_t,
     bool AutoPrune = true
-> requires ValidStableQueue<Queue, Alive, Dead, Index>
+> requires ValidStableQueue<MyQueue, Alive, Dead, Index>
 class StableQueue {
 private:
     struct Swapper;
-    static constexpr bool Swappable = AcceptsSwap<Queue<Alive>, Swapper>;
+    static constexpr bool Swappable = AcceptsSwap<MyQueue<Alive>, Swapper>;
     
     using IndexType = Index;
     static constexpr IndexType NO_INDEX = std::numeric_limits<IndexType>::max();
 
-    static inline Queue<Alive> makeAlive(size_t aliveCap, StableQueue& self)
+    static inline MyQueue<Alive> makeAlive(size_t aliveCap, StableQueue& self)
         requires (Swappable)
     {
-        return Queue<Alive>(aliveCap, Swapper{self});
+        return MyQueue<Alive>(aliveCap, Swapper{self});
     }
 
-    static inline Queue<Alive> makeAlive(size_t aliveCap, StableQueue&)
+    static inline MyQueue<Alive> makeAlive(size_t aliveCap, StableQueue&)
         requires (!Swappable)
     {
-        return Queue<Alive>(aliveCap);
+        return MyQueue<Alive>(aliveCap);
     }
 
 public:
@@ -73,7 +75,9 @@ public:
         m_alive(makeAlive(std::max<size_t>(aliveCap, 1), *this))
     {
         m_dead.reserve(std::max<size_t>(deadCap, 1));
-        m_prevIndex.reserve(m_alive.capacity() + m_dead.capacity() + extraCap);
+        m_deadPrevIndex.reserve(m_dead.capacity());
+        m_alivePrevIndex.reserve(m_alive.capacity());
+        m_extraPrevIndex.reserve(extraCap);
     }
 
     StableQueue(const StableQueue&) = delete;
@@ -90,8 +94,10 @@ public:
     constexpr void reset() {
         m_alive.clear();
         m_dead.clear();
-        m_prevIndex.clear();
-        m_extraRefs = 0;
+        m_deadPrevIndex.clear();
+        m_alivePrevIndex.clear();
+        m_extraPrevIndex.clear();
+        m_rejectFrontSwap = false;
     }
 
     constexpr void push(Alive&& item) {
@@ -102,7 +108,7 @@ public:
             pruneBeforeGrowth(1);
         }
         const IndexType prevIndex = peekIndex();
-        m_prevIndex.insert(m_prevIndex.begin() + m_dead.size() + m_alive.size(), prevIndex);
+        m_alivePrevIndex.push(prevIndex);
         const PushSwapGuard guard(*this);
         m_alive.push(std::forward<Alive>(item));
         checkInvariants();
@@ -116,7 +122,7 @@ public:
             pruneBeforeGrowth(1);
         }
         const IndexType prevIndex = peekIndex();
-        m_prevIndex.insert(m_prevIndex.begin() + m_dead.size() + m_alive.size(), prevIndex);
+        m_alivePrevIndex.push(prevIndex);
         const PushSwapGuard guard(*this);
         m_alive.push(item);
         checkInvariants();
@@ -130,8 +136,7 @@ public:
             pruneBeforeGrowth(1);
         }
         const IndexType prevIndex = peekIndex();
-        m_prevIndex.push_back(prevIndex);
-        ++m_extraRefs;
+        m_extraPrevIndex.push_back(prevIndex);
         checkInvariants();
     }
 
@@ -147,22 +152,18 @@ public:
             throw std::runtime_error("Cannot remove front from an empty queue");
         }
         m_dead.push_back(Dead(m_alive.pop()));
+        assert(!m_alivePrevIndex.empty());
         if constexpr (Swappable) {
-            // Cycle the array around
-            assert(m_dead.size() > 0);
-            const size_t lastDead = m_dead.size() - 1;
-            size_t lastIndex = lastDead + m_alive.size();
-            IndexType frontIndex = std::move(m_prevIndex[lastIndex]);
-            for (; lastIndex > lastDead; --lastIndex) {
-                m_prevIndex[lastIndex] = std::move(m_prevIndex[lastIndex - 1]);
-            }
-            m_prevIndex[lastDead] = std::move(frontIndex);
+            m_deadPrevIndex.push_back(m_alivePrevIndex.popBack());
+        }
+        else {
+            m_deadPrevIndex.push_back(m_alivePrevIndex.pop());
         }
         checkInvariants();
     }
 
     template<
-        template<class> class SubQueue,
+        template<class...> class SubQueue,
         typename SubAlive,
         typename SubDead,
         typename SubIndex,
@@ -183,7 +184,7 @@ public:
         using SubQueueType = std::remove_cvref_t<decltype(subqueue)>;
         const size_t itemsSize = size_t(std::ranges::size(items));
 
-        if (itemsSize != subqueue.m_extraRefs) {
+        if (itemsSize != subqueue.m_extraPrevIndex.size()) {
             throw std::invalid_argument("There should be as many extra refs as items in the subqueue");
         }
 
@@ -207,26 +208,21 @@ public:
         assert(!m_dead.empty());
 
         const IndexType rootIndex = indexCast(m_dead.size()) - 1;
-        m_prevIndex.insert_range(
-            m_prevIndex.begin() + m_dead.size(),
-            subqueue.m_prevIndex |
+        auto rebaseSubqueueIndex = [&](auto&& i) {
+            assert(i != SubQueueType::NO_INDEX);
+            return IndexType(i) + rootIndex;
+        };
+        m_deadPrevIndex.append_range(
+            subqueue.m_deadPrevIndex |
             std::views::drop(1) |
-            std::views::take(numDeadToKeep) |
-            std::views::transform([&](auto&& i) {
-                assert(i != SubQueueType::NO_INDEX);
-                return IndexType(i) + rootIndex;
-            })
+            std::views::transform(rebaseSubqueueIndex)
         );
         m_dead.append_range(subqueue.m_dead | std::views::drop(1));
 
         assert(subqueue.size() == 0);
-        m_prevIndex.append_range(
-            subqueue.m_prevIndex |
-            std::views::drop(subqueue.deadSize()) |
-            std::views::transform([&](auto&& i) {
-                assert(i != SubQueueType::NO_INDEX);
-                return IndexType(i) + rootIndex;
-            })
+        m_alivePrevIndex.pushRange(
+            subqueue.m_extraPrevIndex |
+            std::views::transform(rebaseSubqueueIndex)
         );
         m_alive.pushRange(std::forward<R>(items));
 
@@ -235,15 +231,17 @@ public:
 
     constexpr void pruneDead() {
         const IndexType oldDeadSize = indexCast(m_dead.size());
-        const IndexType aliveSize = indexCast(m_alive.size() + m_extraRefs);
-        const IndexType oldSize = indexCast(m_prevIndex.size());
+        const IndexType aliveAndExtraSize = indexCast(m_alive.size() + m_extraPrevIndex.size());
+        const IndexType oldSize = indexCast(prevIndexSize());
 
         checkInvariants();
 
         if (oldSize == 0) {
             m_alive.clear(); // Allows the queue to reset itself.
             assert(m_dead.empty());
-            assert(m_extraRefs == 0);
+            assert(m_deadPrevIndex.empty());
+            assert(m_alivePrevIndex.empty());
+            assert(m_extraPrevIndex.empty());
             return;
         }
 
@@ -260,7 +258,7 @@ public:
                 }
 
                 live[index] = 1;
-                index = m_prevIndex[index];
+                index = prevIndexAt(index);
             }
         };
 
@@ -280,7 +278,7 @@ public:
 
             if (writeDeadIndex != readDeadIndex) {
                 m_dead[writeDeadIndex] = std::move(m_dead[readDeadIndex]);
-                m_prevIndex[writeDeadIndex] = m_prevIndex[readDeadIndex];
+                m_deadPrevIndex[writeDeadIndex] = m_deadPrevIndex[readDeadIndex];
             }
 
             ++writeDeadIndex;
@@ -288,15 +286,10 @@ public:
 
         const IndexType newDeadSize = writeDeadIndex;
 
-        for (IndexType i = 0; i < aliveSize; ++i) {
+        for (IndexType i = 0; i < aliveAndExtraSize; ++i) {
             const IndexType oldIndex = oldDeadSize + i;
             const IndexType newIndex = newDeadSize + i;
-
             remap[oldIndex] = newIndex;
-
-            if (newIndex != oldIndex) {
-                m_prevIndex[newIndex] = m_prevIndex[oldIndex];
-            }
         }
 
         m_dead.erase(
@@ -304,25 +297,15 @@ public:
             m_dead.end()
         );
 
-        m_prevIndex.erase(
-            m_prevIndex.begin() + newDeadSize + aliveSize,
-            m_prevIndex.end()
+        m_deadPrevIndex.erase(
+            m_deadPrevIndex.begin() + newDeadSize,
+            m_deadPrevIndex.end()
         );
 
         // Remap all retained prevIndex links.
-        for (size_t i = 0; i < m_prevIndex.size(); ++i) {
-            const IndexType oldPrevIndex = m_prevIndex[i];
-
-            if (oldPrevIndex == NO_INDEX) {
-                continue;
-            }
-            assert(oldPrevIndex < oldSize); // StableQueue contains invalid prevIndex
-
-            const IndexType newPrevIndex = remap[oldPrevIndex];
-            assert(newPrevIndex != NO_INDEX); // StableQueue pruning removed a required parent
-
-            m_prevIndex[i] = newPrevIndex;
-        }
+        remapPrevIndices(m_deadPrevIndex, oldSize, remap);
+        remapPrevIndices(m_alivePrevIndex, oldSize, remap);
+        remapPrevIndices(m_extraPrevIndex, oldSize, remap);
 
         checkInvariants();
     }
@@ -371,15 +354,60 @@ private:
         return IndexType(value);
     }
 
+    [[nodiscard]] constexpr size_t prevIndexSize() const {
+        return m_deadPrevIndex.size() + m_alivePrevIndex.size() + m_extraPrevIndex.size();
+    }
+
+    [[nodiscard]] constexpr size_t prevIndexCapacity() const {
+        return m_deadPrevIndex.capacity() + m_alivePrevIndex.capacity() + m_extraPrevIndex.capacity();
+    }
+
+    [[nodiscard]] constexpr IndexType prevIndexAt(IndexType index) const {
+        const size_t rawIndex = size_t(index);
+        const size_t deadSize = m_deadPrevIndex.size();
+        const size_t aliveSize = m_alivePrevIndex.size();
+
+        if (rawIndex < deadSize) {
+            return m_deadPrevIndex[rawIndex];
+        }
+        if (rawIndex < deadSize + aliveSize) {
+            return m_alivePrevIndex[rawIndex - deadSize];
+        }
+        if (rawIndex < deadSize + aliveSize + m_extraPrevIndex.size()) {
+            return m_extraPrevIndex[rawIndex - deadSize - aliveSize];
+        }
+
+        throw std::invalid_argument("Index out of range");
+    }
+
+    template<class PrevIndexContainer>
+    constexpr void remapPrevIndices(
+        PrevIndexContainer& prevIndices,
+        IndexType oldSize,
+        const std::vector<IndexType>& remap
+    ) {
+        for (IndexType& prevIndex : prevIndices) {
+            if (prevIndex == NO_INDEX) {
+                continue;
+            }
+            assert(prevIndex < oldSize); // StableQueue contains invalid prevIndex
+
+            const IndexType newPrevIndex = remap[prevIndex];
+            assert(newPrevIndex != NO_INDEX); // StableQueue pruning removed a required parent
+
+            prevIndex = newPrevIndex;
+        }
+    }
+
     [[nodiscard]] constexpr IndexType peekIndex() const {
         return empty() ? NO_INDEX : indexCast(m_dead.size());
     }
 
     [[nodiscard]] constexpr IndexType getPrevIndex(IndexType index) const {
-        if (index >= m_prevIndex.size()) {
+        if (index >= prevIndexSize()) {
             throw std::invalid_argument("Index out of range");
         }
-        return m_prevIndex[index];
+        return prevIndexAt(index);
     }
 
     [[nodiscard]] constexpr Dead at(IndexType index) const {
@@ -402,26 +430,26 @@ private:
     }
 
     constexpr void pruneBeforeGrowth(size_t newElems) {
-        const size_t free = m_prevIndex.capacity() - m_prevIndex.size();
+        const size_t free = prevIndexCapacity() - prevIndexSize();
         if (newElems <= free) {
             return;
         }
 
 #ifdef VERBOSE_LOGS
-        const size_t oldSize = m_prevIndex.size();
+        const size_t oldSize = prevIndexSize();
         const size_t oldDeadSize = m_dead.size();
         const size_t aliveSize = m_alive.size();
 #endif
 
-        const size_t oldCapacity = m_prevIndex.capacity();
+        const size_t oldCapacity = prevIndexCapacity();
 
         pruneDead();
 
-        const size_t freeSlots = m_prevIndex.capacity() - m_prevIndex.size();
-        const size_t minFreeSlots = std::max<size_t>(newElems, m_prevIndex.capacity() / 4);
+        const size_t freeSlots = prevIndexCapacity() - prevIndexSize();
+        const size_t minFreeSlots = std::max<size_t>(newElems, prevIndexCapacity() / 4);
 
 #ifdef VERBOSE_LOGS
-        const size_t newSize = m_prevIndex.size();
+        const size_t newSize = prevIndexSize();
         const size_t removed = oldSize - newSize;
 
         std::cout
@@ -433,7 +461,7 @@ private:
             << ", newDead=" << m_dead.size()
             << ", oldAlive=" << aliveSize
             << ", newAlive=" << m_alive.size()
-            << ", capacity=" << m_prevIndex.capacity()
+            << ", capacity=" << prevIndexCapacity()
             << ", freeSlots=" << freeSlots
             << '\n';
 #endif
@@ -452,7 +480,7 @@ private:
 
         const size_t newCapacity = std::max<size_t>(
             growthCapacity,
-            m_prevIndex.size() + minFreeSlots
+            prevIndexSize() + minFreeSlots
         );
 
 #ifdef VERBOSE_LOGS
@@ -462,35 +490,59 @@ private:
             << '\n';
 #endif
 
-        m_prevIndex.reserve(newCapacity);
+        const size_t minDeadCapacity = m_deadPrevIndex.size();
+        const size_t minAliveCapacity = m_alivePrevIndex.size();
+        const size_t minExtraCapacity = m_extraPrevIndex.size();
+        const size_t remainingCapacity = newCapacity - prevIndexSize();
+
+        m_deadPrevIndex.reserve(minDeadCapacity + remainingCapacity);
+        m_alivePrevIndex.reserve(minAliveCapacity + remainingCapacity);
+        m_extraPrevIndex.reserve(minExtraCapacity + remainingCapacity);
     }
 
     constexpr void checkInvariants() const {
 #ifndef NDEBUG
-        assert(m_prevIndex.size() == m_dead.size() + m_alive.size() + m_extraRefs);
+        assert(m_dead.size() == m_deadPrevIndex.size());
+        assert(m_alive.size() == m_alivePrevIndex.size());
 
-        for (size_t i = 0; i < m_prevIndex.size(); ++i) {
-            const IndexType prevIndex = m_prevIndex[i];
+        const size_t totalSize = prevIndexSize();
+        const size_t deadSize = m_deadPrevIndex.size();
+        const size_t aliveSize = m_alivePrevIndex.size();
 
-            if (i == 0) {
+        auto checkPrevIndex = [&](size_t logicalIndex, IndexType prevIndex) {
+            if (logicalIndex == 0) {
                 assert(prevIndex == NO_INDEX);
-                continue;
+                return;
             }
 
             // Revived queue error
             assert(prevIndex != NO_INDEX);
 
             // Pruning remap error
-            assert(size_t(prevIndex) < m_prevIndex.size());
+            assert(size_t(prevIndex) < totalSize);
 
             // Circular
-            assert(size_t(prevIndex) != i);
+            assert(size_t(prevIndex) != logicalIndex);
 
             // Backwards
-            assert(size_t(prevIndex) < i);
+            assert(size_t(prevIndex) < logicalIndex);
 
             // Pointing to the middle of the active queue
-            assert(i < m_dead.size() || size_t(prevIndex) <= m_dead.size());
+            if (logicalIndex >= deadSize) {
+                assert(size_t(prevIndex) <= deadSize);
+            }
+        };
+
+        for (size_t i = 0; i < m_deadPrevIndex.size(); ++i) {
+            checkPrevIndex(i, m_deadPrevIndex[i]);
+        }
+
+        for (size_t i = 0; i < m_alivePrevIndex.size(); ++i) {
+            checkPrevIndex(deadSize + i, m_alivePrevIndex[i]);
+        }
+
+        for (size_t i = 0; i < m_extraPrevIndex.size(); ++i) {
+            checkPrevIndex(deadSize + aliveSize + i, m_extraPrevIndex[i]);
         }
 #endif
     }
@@ -517,21 +569,21 @@ private:
     struct Swapper {
         StableQueue& queue;
 
-        // Called by Queue when it swaps alive slots lhs/rhs.
-        // Keeps m_prevIndex aligned with the alive storage order.
+        // Called by MyQueue when it swaps alive slots lhs/rhs.
+        // Keeps m_alivePrevIndex aligned with the alive storage order.
         constexpr void operator()(size_t lhs, size_t rhs) {
             assert(lhs != rhs);
             if (queue.m_rejectFrontSwap && (lhs == 0 || rhs == 0)) {
                 throw std::invalid_argument("Cannot push an item that would move the StableQueue front node");
             }
-            const size_t offset = queue.m_dead.size();
-            std::swap(queue.m_prevIndex[offset + lhs], queue.m_prevIndex[offset + rhs]);
+            std::swap(queue.m_alivePrevIndex[lhs], queue.m_alivePrevIndex[rhs]);
         }
     };
 
-    Queue<Alive> m_alive;
+    MyQueue<Alive> m_alive;
     std::vector<Dead> m_dead;
-    std::vector<IndexType> m_prevIndex;
-    size_t m_extraRefs = 0;
+    std::vector<IndexType> m_deadPrevIndex;
+    Queue<IndexType> m_alivePrevIndex;
+    std::vector<IndexType> m_extraPrevIndex;
     bool m_rejectFrontSwap = false;
 };

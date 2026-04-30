@@ -108,6 +108,18 @@ public:
         return m_data[m_front];
     }
 
+    [[nodiscard]] constexpr T& operator[](size_t index) {
+        assert(index < m_size);
+        index = (m_front + index) % m_capacity;
+        return m_data[index];
+    }
+
+    [[nodiscard]] constexpr const T& operator[](size_t index) const {
+        assert(index < m_size);
+        index = (m_front + index) % m_capacity;
+        return m_data[index];
+    }
+
     constexpr void push(T&& item) {
         if (m_size == m_capacity) {
             reserve(m_capacity * GROWTH_FACTOR);
@@ -144,7 +156,24 @@ public:
 
         T item = std::move(m_data[m_front]);
         m_allocator.destroy(m_data + m_front++);
-        m_size--;
+        --m_size;
+        if (m_front == m_capacity) {
+            m_front = 0;
+        }
+
+        return item;
+    }
+
+    [[nodiscard]] constexpr T popBack() {
+        if (empty()) {
+            throw std::runtime_error("Cannot pop back from an empty queue");
+        }
+
+        const size_t back = (m_back == 0) ? (m_capacity - 1) : (m_back - 1);
+        T item = std::move(m_data[back]);
+        m_allocator.destroy(m_data + back);
+        m_back = back;
+        --m_size;
         if (m_front == m_capacity) {
             m_front = 0;
         }
@@ -170,12 +199,12 @@ public:
         constexpr iterator operator++(int) { iterator temp = *this; ++(*this); return temp; }
 
         constexpr friend bool operator==(const iterator& a, const iterator& b) {
-            assert(a.m_owner.m_data == b.m_owner.m_data);
+            assert(&a.m_owner == &b.m_owner);
             return a.m_index == b.m_index;
         }
 
         constexpr friend bool operator!=(const iterator& a, const iterator& b) {
-            assert(a.m_owner.m_data == b.m_owner.m_data);
+            assert(&a.m_owner == &b.m_owner);
             return a.m_index != b.m_index;
         }
 
