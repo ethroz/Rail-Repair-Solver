@@ -345,8 +345,13 @@ std::vector<Direction> search(
                 break;
             }
             std::cout << std::format(
-                "\rStates checked: {}. Queue size: {}. Queue dead size: {}. Visited cache: {}. ",
+                "\rStates checked: {}. "
+                "Min rank: {}. "
+                "Queue size: {}. "
+                "Queue dead size: {}. "
+                "Visited cache: {}. ",
                 stats.iterations,
+                currentState.rank,
                 queue.size(),
                 queue.deadSize(),
                 visited.size()
