@@ -51,6 +51,7 @@ public:
     constexpr Cell(const CELL& cell) : m_cell(cell) {}
 
     constexpr bool isMovable() const { return (m_cell & IMMOVABLE) == 0; }
+    constexpr bool isWalkable() const { return isMovable() || isLever() || m_cell == HOLE; }
     constexpr bool isTrack() const { return (m_cell & TRACK) > 0; }
     constexpr bool isLever() const { return (m_cell & LEVER) > 0; }
     constexpr bool isStart() const { return (m_cell & START) > 0; }
@@ -207,22 +208,6 @@ public:
             return {PLAYER, 0xFF};
         }
         return {at(p), 0xFF};
-    }
-
-    constexpr std::vector<Position> getAllMovable() const {
-        std::vector<Position> movable;
-        movable.reserve(TOTAL);
-
-        for (uint8_t x = 0; x < width; ++x) {
-            for (uint8_t y = 0; y < height; ++y) {
-                const Cell& cell = at(x, y);
-                if (cell.isMovable() || cell.isLever() || cell == HOLE) {
-                    movable.push_back({x, y});
-                }
-            }
-        }
-
-        return movable;
     }
 
     constexpr const Cell& at(Position p) const { return m_data[p.y()][p.x()]; }

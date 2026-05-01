@@ -8,10 +8,12 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <ranges>
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/inlined_vector.h>
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
@@ -19,8 +21,10 @@
 #include "Queue.hpp"
 #include "StableQueue.hpp"
 
+using Stamp = size_t;
+
 static struct Stats {
-    size_t iterations;
+    Stamp iterations;
     size_t visited;
 } stats;
 
@@ -253,7 +257,8 @@ Direction getStepDirection(
     Direction stepDir = Position::diffStep(prevState.player, currentState.player);
     if (stepDir == NONE) {
         assert(currentState.numToggledLevers() - prevState.numToggledLevers() > 0);
-        for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+        for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
+            const Direction dir = DIRECTION(dirValue);
             if (grid.at(currentState.player + dir).isLever()) {
                 stepDir = dir;
                 break;
@@ -316,21 +321,26 @@ std::vector<Direction> search(
     // Based on max number of elements we could possibly see in the queue.
     constexpr size_t MAX_POS_QUEUE_SIZE = MAX_OBJECTS * 2;
 
-    std::array<std::array<bool, 16>, 16> posVisited = {};
+    constexpr Stamp MAX_STAMP = std::numeric_limits<Stamp>::max();
+    std::array<std::array<Stamp, 16>, 16> posVisitedStamp = {};
     PosQueue posQueue(MAX_POS_QUEUE_SIZE, BASE, MAX_NEXT_STATES);
-    std::vector<Position> movable = grid.getAllMovable();
 
-    std::vector<State> nextStates;
-    nextStates.reserve(MAX_NEXT_STATES);
-    
-    for (auto& row : posVisited) {
-        row.fill(true);
+    absl::InlinedVector<State, MAX_NEXT_STATES> nextStates;
+
+    for (uint8_t y = 0; y < grid.height; ++y) {
+        for (uint8_t x = 0; x < grid.width; ++x) {
+            if (!grid.at(x, y).isWalkable()) {
+                posVisitedStamp[y][x] = MAX_STAMP;
+            }
+        }
     }
 
     queue.push(initialState);
     visited[initialState.encode(grid.objectCount)] = initialState.rank;
 
     stats.iterations = 0;
+    constexpr uint32_t PROGRESS_RESET = 100000;
+    uint32_t progressCountdown = PROGRESS_RESET;
 
     while (!queue.empty()) {
         const State& currentState = queue.peek();
@@ -339,29 +349,21 @@ std::vector<Direction> search(
             break;
         }
 
-        stats.iterations++;
-        if (stats.iterations % 100000 == 0) {
+        ++stats.iterations;
+        if (--progressCountdown == 0) {
+            progressCountdown = PROGRESS_RESET;
             if (done) {
                 break;
             }
-            std::cout << std::format(
-                "\rStates checked: {}. "
-                "Min rank: {}. "
-                "Queue size: {}. "
-                "Queue dead size: {}. "
-                "Visited cache: {}. ",
-                stats.iterations,
-                currentState.rank,
-                queue.size(),
-                queue.deadSize(),
-                visited.size()
-            );
+            std::cout <<
+                "\rStates checked: " << stats.iterations << ". "
+                "Min rank: " << currentState.rank << ". "
+                "Queue size: " << queue.size() << ". "
+                "Queue dead size: " << queue.deadSize() << ". "
+                "Visited cache: " << visited.size() << ". ";
             std::cout.flush();
         }
 
-        for (Position pos : movable) {
-            posVisited[pos.y()][pos.x()] = false;
-        }
         posQueue.reset();
         nextStates.clear();
 
@@ -369,16 +371,17 @@ std::vector<Direction> search(
 
         while (!posQueue.empty()) {
             const auto& posState = posQueue.peek();
-            bool& used = posVisited[posState.player.y()][posState.player.x()];
-            if (used) {
+            Stamp& stamp = posVisitedStamp[posState.player.y()][posState.player.x()];
+            if (stamp >= stats.iterations) {
                 posQueue.removeFront();
                 continue;
             }
-            used = true;
+            stamp = stats.iterations;
 
-            for (Direction dir = MIN_DIR; dir <= MAX_DIR; dir = DIRECTION(dir + 1)) {
+            for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
+                const Direction dir = DIRECTION(dirValue);
                 const auto nextMove = posState.player + dir;
-                if (posVisited[nextMove.y()][nextMove.x()]) {
+                if (posVisitedStamp[nextMove.y()][nextMove.x()] >= stats.iterations) {
                     continue;
                 }
 
