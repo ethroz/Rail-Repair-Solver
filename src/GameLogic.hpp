@@ -264,8 +264,8 @@ Direction getStepDirection(
     return stepDir;
 }
 
-using StateQueue = StableQueue<PriorityQueue, State, DeadState, uint32_t>;
-using PosQueue = StableQueue<Queue, RankedDeadState, DeadState, uint8_t, false>;
+using StateQueue = StableQueue<PriorityQueue, State, DeadState, uint32_t, true, false>;
+using PosQueue = StableQueue<Queue, RankedDeadState, DeadState, uint8_t, false, true>;
 
 std::vector<Direction> buildSolution(
     const Grid& grid,
