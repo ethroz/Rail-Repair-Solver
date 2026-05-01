@@ -446,7 +446,7 @@ std::vector<Direction> search(
             posQueue.removeFront();
         }
         
-        posQueue.pruneDead();
+        // posQueue.pruneDead();
         
         queue.removeFrontWithDeadSubqueue(posQueue, nextStates);
     }
