@@ -87,7 +87,7 @@ private:
 
 struct Position {
     constexpr Position() = default;
-    constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_y << 4) | (_x)) { assert(_x <= 0XF && _y <= 0XF); }
+    constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_y << 4) | (_x & 0xF)) { assert(_x <= 0XF && _y <= 0XF); }
     
     [[nodiscard]] friend inline constexpr Position operator+(Position a, Position b) { return Position(a.x() + b.x(), a.y() + b.y()); }
     constexpr Position& operator+=(Position o) {
