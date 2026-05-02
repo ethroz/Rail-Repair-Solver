@@ -130,9 +130,7 @@ public:
              std::constructible_from<I, std::ranges::range_reference_t<Indices>>
     constexpr void append_range(Values&& vals, Indices&& inds) {
         const size_t valueCount = size_t(std::ranges::size(vals));
-        const size_t indexCount = size_t(std::ranges::size(inds));
-
-        assert(valueCount == indexCount);
+        assert(valueCount == size_t(std::ranges::size(inds)));
 
         if (valueCount == 0) {
             return;

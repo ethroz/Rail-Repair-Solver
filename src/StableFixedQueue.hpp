@@ -206,7 +206,7 @@ private:
     template<class Container, class Remap>
     constexpr void remapPrevIndices(
         Container& container,
-        Index maxIndex,
+        [[maybe_unused]] Index maxIndex,
         const Remap& remap
     ) {
         for (size_t i = 0; i < container.size(); ++i) {

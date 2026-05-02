@@ -28,11 +28,6 @@ static struct Stats {
     size_t visited;
 } stats;
 
-static void printStats(std::ostream& out) {
-    out << "Total iterations: " << stats.iterations << std::endl;
-    out << "visited size: " << stats.visited << std::endl;
-}
-
 using CellDescriptor = std::pair<char, bool>;
 
 const static std::map<CellDescriptor, Cell> LEGEND = {

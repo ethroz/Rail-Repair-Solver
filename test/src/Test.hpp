@@ -18,7 +18,7 @@ class TestException : public std::exception {
 public:
     TestException(std::string_view msg) : m_msg(msg) {}
 
-    const char* what() const override { return m_msg.c_str(); }
+    const char* what() const noexcept override { return m_msg.c_str(); }
 
 private:
     std::string m_msg;
@@ -82,7 +82,7 @@ inline std::string toString(const T& val) {
     else {
         std::stringstream ss;
         ss << "0x" << std::hex;
-        for (int i = 0; i < sizeof(T); ++i) {
+        for (size_t i = 0; i < sizeof(T); ++i) {
             ss << std::setw(2) << std::setfill('0') << (int)reinterpret_cast<const uint8_t*>(&val)[i];
         }
         return ss.str();

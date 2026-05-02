@@ -32,8 +32,8 @@ public:
     inline StablePriorityQueue(size_t capacity = 2) : StablePriorityQueue(capacity / 2, capacity / 2) {}
 
     inline StablePriorityQueue(size_t aliveCap, size_t deadCap) :
-        m_alive(aliveCap),
-        m_dead(deadCap)
+        m_dead(deadCap),
+        m_alive(aliveCap)
     {}
 
     StablePriorityQueue(const StablePriorityQueue&) = delete;
@@ -89,7 +89,6 @@ public:
     constexpr void removeFrontWithDeadSubqueue(
         const StableFixedQueue<SubAlive, Dead, Alive, AliveSize, DeadSize, ExternSize, SubIndex>& subqueue
     ) {
-        using SubQueueType = std::remove_cvref_t<decltype(subqueue)>;
         const size_t size = subqueue.m_extern.size();
 
         if (size == 0) {
@@ -112,7 +111,7 @@ public:
 
         const Index rootIndex = indexCast(m_dead.size()) - 1;
         auto rebaseSubqueueIndex = [&](auto&& i) {
-            assert(i != SubQueueType::NO_INDEX);
+            assert(i != std::remove_cvref_t<decltype(subqueue)>::NO_INDEX);
             return Index(i) + rootIndex;
         };
         m_dead.append_range(
@@ -257,7 +256,7 @@ private:
     template<class Container>
     constexpr void remapPrevIndices(
         Container& container,
-        Index maxIndex,
+        [[maybe_unused]] Index maxIndex,
         const std::vector<Index>& remap
     ) {
         for (size_t i = 0; i < container.size(); ++i) {

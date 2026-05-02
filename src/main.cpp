@@ -14,12 +14,17 @@
 static std::atomic_bool done = false;
 
 static const std::filesystem::path repoPath = std::filesystem::canonical(
-    std::filesystem::path(__FILE__) / ".." / ".."
+    std::filesystem::path(__FILE__).parent_path() / ".."
 );
 
-void sigHandler(int signal) {
+void sigHandler([[maybe_unused]] int signal) {
     done = true;
     std::cout << std::endl;
+}
+
+void printStats(std::ostream& out) {
+    out << "Total iterations: " << stats.iterations << std::endl;
+    out << "visited size: " << stats.visited << std::endl;
 }
 
 void writeSolutionFile(

@@ -94,7 +94,7 @@ public:
         leverBits ^= 1 << index;
     }
 
-    constexpr int numToggledLevers() const {
+    constexpr size_t numToggledLevers() const {
         return std::popcount(leverBits);
     }
 
@@ -165,7 +165,7 @@ struct DeadState {
         leverBits ^= 1 << index;
     }
 
-    constexpr int numToggledLevers() const {
+    constexpr size_t numToggledLevers() const {
         return std::popcount(leverBits);
     }
 #endif
@@ -191,9 +191,14 @@ static_assert(std::constructible_from<DeadState, RankedDeadState>);
 
 struct Grid {
 public:
+    struct LookupResult {
+        Cell cell;
+        uint8_t index;
+    };
+
     constexpr Grid() = default;
 
-    constexpr struct { Cell cell; uint8_t index; } at(const State& state, Position p) const {
+    constexpr LookupResult at(const State& state, Position p) const {
         for (uint8_t i = 0; i < objectCount; ++i) {
             if (state.objects[i] == FLOOR) {
                 continue;

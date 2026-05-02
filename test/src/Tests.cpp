@@ -180,9 +180,9 @@ TEST(Position) {
 static std::regex LEVEL_FILE_REGEX{"level\\d+.txt"};
 TEST(LevelParsing) {
     const std::filesystem::path levelsPath = std::filesystem::canonical(
-        std::filesystem::path(__FILE__) / ".." / ".." / ".." / "levels"
+        std::filesystem::path(__FILE__).parent_path() / ".." / ".." / "levels"
     );
-    for (const std::filesystem::directory_entry dirEntry : std::filesystem::directory_iterator(levelsPath)) {
+    for (const std::filesystem::directory_entry& dirEntry : std::filesystem::directory_iterator(levelsPath)) {
         if (!dirEntry.is_regular_file()) {
             continue;
         }
