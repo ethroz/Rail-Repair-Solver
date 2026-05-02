@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <bit>
 #include <cassert>
 #include <cstdlib>
 #include <filesystem>
@@ -270,33 +271,35 @@ Direction getStepDirection(
 
 using StateQueue = StablePriorityQueue<State, DeadState, uint32_t, true>;
 constexpr size_t MAX_NEXT_STATES = MAX_OBJECTS * MAX_DIR + MAX_LEVERS;
-// Based on max number of elements we could possibly see in the queue.
-constexpr size_t MAX_POS_QUEUE_SIZE = MAX_OBJECTS * 2;
-using MoveQueue = StableFixedQueue<RankedDeadState, DeadState, State, MAX_POS_QUEUE_SIZE, BASE, MAX_NEXT_STATES, uint8_t>;
+// Based on max number of elements we could possibly see in the stateQueue.
+constexpr size_t MAX_MOVE_QUEUE_SIZE = MAX_OBJECTS * 2;
+// Round up to the nearest power of two to convert modulo operators to and operators.
+constexpr size_t MOVE_QUEUE_SIZE = std::bit_ceil(MAX_MOVE_QUEUE_SIZE);
+using MoveQueue = StableFixedQueue<RankedDeadState, DeadState, State, MOVE_QUEUE_SIZE, BASE, MAX_NEXT_STATES, uint8_t>;
 
 std::vector<Direction> buildSolution(
     const Grid& grid,
-    const StateQueue& queue,
-    const MoveQueue& posQueue,
+    const StateQueue& stateQueue,
+    const MoveQueue& moveQueue,
     const State& lastState
 ) {
     std::vector<Direction> solution;
 
-    Direction stepDir = getStepDirection(grid, lastState, posQueue.peek());
+    Direction stepDir = getStepDirection(grid, lastState, moveQueue.peek());
     solution.push_back(stepDir);
 
-    auto posIt = posQueue.begin();
+    auto posIt = moveQueue.begin();
     DeadState currentState = *posIt;
-    for (++posIt; posIt != posQueue.end(); ++posIt) {
+    for (++posIt; posIt != moveQueue.end(); ++posIt) {
         DeadState prevState = *posIt;
         Direction stepDir = getStepDirection(grid, currentState, prevState);
         solution.push_back(stepDir);
         currentState = std::move(prevState);
     }
 
-    auto stateIt = queue.begin();
+    auto stateIt = stateQueue.begin();
     currentState = *stateIt;
-    for (++stateIt; stateIt != queue.end(); ++stateIt) {
+    for (++stateIt; stateIt != stateQueue.end(); ++stateIt) {
         DeadState prevState = *stateIt;
         Direction stepDir = getStepDirection(grid, currentState, prevState);
         solution.push_back(stepDir);
@@ -314,32 +317,32 @@ std::vector<Direction> search(
     const std::atomic_bool& done = {}
 ) {
     absl::flat_hash_map<StateEncoding, Rank> visited(5000000);
-    StateQueue queue(1000000, 5000000);
+    StateQueue stateQueue(1000000, 5000000);
 
     Rank bestRank = std::numeric_limits<Rank>::max();
     std::vector<Direction> bestMoves;
 
     constexpr Stamp MAX_STAMP = std::numeric_limits<Stamp>::max();
-    std::array<std::array<Stamp, 16>, 16> posVisitedStamp = {};
+    std::array<std::array<Stamp, 16>, 16> moveVisitedStamp = {};
     MoveQueue moveQueue;
 
     for (uint8_t y = 0; y < grid.height; ++y) {
         for (uint8_t x = 0; x < grid.width; ++x) {
             if (!grid.at(x, y).isWalkable()) {
-                posVisitedStamp[y][x] = MAX_STAMP;
+                moveVisitedStamp[y][x] = MAX_STAMP;
             }
         }
     }
 
-    queue.push(initialState);
+    stateQueue.push(initialState);
     visited[initialState.encode(grid.objectCount)] = initialState.rank;
 
     stats.iterations = 0;
     constexpr uint32_t PROGRESS_RESET = 100000;
     uint32_t progressCountdown = PROGRESS_RESET;
 
-    while (!queue.empty()) {
-        const State& currentState = queue.peek();
+    while (!stateQueue.empty()) {
+        const State& currentState = stateQueue.peek();
 
         if (currentState.rank > bestRank) {
             break;
@@ -354,8 +357,8 @@ std::vector<Direction> search(
             std::cout <<
                 "\rStates checked: " << stats.iterations << ". "
                 "Min rank: " << currentState.rank << ". "
-                "Queue size: " << queue.size() << ". "
-                "Queue dead size: " << queue.deadSize() << ". "
+                "Queue size: " << stateQueue.size() << ". "
+                "Queue dead size: " << stateQueue.deadSize() << ". "
                 "Visited cache: " << visited.size() << ". ";
             std::cout.flush();
         }
@@ -366,7 +369,7 @@ std::vector<Direction> search(
 
         while (!moveQueue.empty()) {
             const auto& posState = moveQueue.peek();
-            Stamp& stamp = posVisitedStamp[posState.player.y()][posState.player.x()];
+            Stamp& stamp = moveVisitedStamp[posState.player.y()][posState.player.x()];
             if (stamp >= stats.iterations) {
                 moveQueue.removeFront();
                 continue;
@@ -376,7 +379,7 @@ std::vector<Direction> search(
             for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
                 const Direction dir = DIRECTION(dirValue);
                 const auto nextMove = posState.player + dir;
-                if (posVisitedStamp[nextMove.y()][nextMove.x()] >= stats.iterations) {
+                if (moveVisitedStamp[nextMove.y()][nextMove.x()] >= stats.iterations) {
                     continue;
                 }
 
@@ -423,7 +426,7 @@ std::vector<Direction> search(
 
                     if (nextState.numToggledLevers() == startList.size() && nextState.rank < bestRank) {
                         bestRank = nextState.rank;
-                        bestMoves = buildSolution(grid, queue, moveQueue, nextState);
+                        bestMoves = buildSolution(grid, stateQueue, moveQueue, nextState);
                         std::cout << std::format("Found a solution with {} moves.\n", bestRank);
                     }
                     else {
@@ -441,7 +444,7 @@ std::vector<Direction> search(
         
         // moveQueue.pruneDead();
         
-        queue.removeFrontWithDeadSubqueue(moveQueue);
+        stateQueue.removeFrontWithDeadSubqueue(moveQueue);
     }
 
     stats.visited = visited.size();
