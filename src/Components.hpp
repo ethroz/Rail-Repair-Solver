@@ -145,6 +145,8 @@ public:
 struct DeadState {
     Position player = {};
 
+    constexpr DeadState() = default;
+
     constexpr DeadState(const State& state)
 #ifdef NDEBUG
         : player{state.player} {}
@@ -169,10 +171,13 @@ struct DeadState {
 #endif
 };
 
+static_assert(std::is_default_constructible_v<DeadState>);
 static_assert(std::constructible_from<DeadState, State>);
 
 struct RankedDeadState : DeadState {
     Rank rank = 0;
+
+    constexpr RankedDeadState() = default;
 
     constexpr RankedDeadState(const State& state) :
         DeadState(state),
@@ -180,6 +185,7 @@ struct RankedDeadState : DeadState {
     {}
 };
 
+static_assert(std::is_default_constructible_v<RankedDeadState>);
 static_assert(std::constructible_from<RankedDeadState, State>);
 static_assert(std::constructible_from<DeadState, RankedDeadState>);
 

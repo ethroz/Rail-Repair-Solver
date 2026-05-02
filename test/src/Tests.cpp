@@ -9,8 +9,12 @@
 #include "Components.hpp"
 #include "CoordSystem.hpp"
 #include "GameLogic.hpp"
-#include "PriorityQueue.hpp"
-#include "StableQueue.hpp"
+#include "FixedIndexedQueue.hpp"
+#include "FixedIndexedVector.hpp"
+#include "IndexedPriorityQueue.hpp"
+#include "IndexedVector.hpp"
+#include "StableFixedQueue.hpp"
+#include "StablePriorityQueue.hpp"
 
 
 TEST(Tracks_NW) {
@@ -241,602 +245,255 @@ TEST(StateEncoding) {
     EXPECT_NE(encoding1, encoding2);
 }
 
-TEST(PriorityQueue_PushPopKeepsOrder) {
-    PriorityQueue<int> queue;
-    queue.push(5);
-    queue.push(1);
-    queue.push(3);
-    EXPECT_EQ(1, queue.peek());
-    EXPECT_EQ(1, queue.pop());
-    EXPECT_EQ(3, queue.pop());
-    EXPECT_EQ(5, queue.pop());
-    EXPECT_TRUE(queue.empty());
+TEST(FixedIndexedVectorTest_StartsEmptyWithFixedCapacity) {
+    FixedIndexedVector<int, uint32_t, 4> vec;
+
+    EXPECT_TRUE(vec.empty());
+    EXPECT_FALSE(vec.full());
+    EXPECT_EQ(vec.size(), 0u);
+    EXPECT_EQ(vec.capacity(), 4u);
 }
 
-TEST(PriorityQueue_ClearAndEmpty) {
-    PriorityQueue<int> queue;
-    queue.push(42);
-    queue.push(7);
+TEST(FixedIndexedVectorTest_PushBackStoresValuesAndIndices) {
+    FixedIndexedVector<std::string, uint16_t, 3> vec;
+
+    vec.push_back("alpha", 10);
+    vec.push_back("beta", 20);
+
+    EXPECT_FALSE(vec.empty());
+    EXPECT_FALSE(vec.full());
+    EXPECT_EQ(vec.size(), 2u);
+
+    EXPECT_EQ(vec.value(0), "alpha");
+    EXPECT_EQ(vec.index(0), 10u);
+
+    EXPECT_EQ(vec.value(1), "beta");
+    EXPECT_EQ(vec.index(1), 20u);
+}
+
+TEST(FixedIndexedVectorTest_ReportsFullAtCapacity) {
+    FixedIndexedVector<int, uint8_t, 2> vec;
+
+    vec.push_back(11, 1);
+    EXPECT_FALSE(vec.full());
+
+    vec.push_back(22, 2);
+    EXPECT_TRUE(vec.full());
+    EXPECT_EQ(vec.size(), 2u);
+}
+
+TEST(FixedIndexedVectorTest_PopBackRemovesDefaultOneElement) {
+    FixedIndexedVector<int, uint8_t, 3> vec;
+
+    vec.push_back(10, 1);
+    vec.push_back(20, 2);
+    vec.push_back(30, 3);
+
+    vec.pop_back();
+
+    EXPECT_EQ(vec.size(), 2u);
+    EXPECT_EQ(vec.value(0), 10);
+    EXPECT_EQ(vec.index(0), 1u);
+    EXPECT_EQ(vec.value(1), 20);
+    EXPECT_EQ(vec.index(1), 2u);
+}
+
+TEST(FixedIndexedVectorTest_PopBackCanRemoveMultipleElements) {
+    FixedIndexedVector<int, uint8_t, 5> vec;
+
+    vec.push_back(10, 1);
+    vec.push_back(20, 2);
+    vec.push_back(30, 3);
+    vec.push_back(40, 4);
+
+    vec.pop_back(3);
+
+    EXPECT_EQ(vec.size(), 1u);
+    EXPECT_EQ(vec.value(0), 10);
+    EXPECT_EQ(vec.index(0), 1u);
+}
+
+TEST(FixedIndexedVectorTest_ClearMakesVectorEmptyButKeepsCapacity) {
+    FixedIndexedVector<int, uint8_t, 3> vec;
+
+    vec.push_back(10, 1);
+    vec.push_back(20, 2);
+
+    vec.clear();
+
+    EXPECT_TRUE(vec.empty());
+    EXPECT_EQ(vec.size(), 0u);
+    EXPECT_EQ(vec.capacity(), 3u);
+
+    vec.push_back(99, 9);
+    EXPECT_EQ(vec.size(), 1u);
+    EXPECT_EQ(vec.value(0), 99);
+    EXPECT_EQ(vec.index(0), 9u);
+}
+
+TEST(FixedIndexedVectorTest_MoveAssignFromMovesValueAndIndex) {
+    FixedIndexedVector<std::string, uint16_t, 3> vec;
+
+    vec.push_back("zero", 100);
+    vec.push_back("one", 200);
+    vec.push_back("two", 300);
+
+    vec.move_assign_from(0, 2);
+
+    EXPECT_EQ(vec.value(0), "two");
+    EXPECT_EQ(vec.index(0), 300u);
+}
+
+TEST(FixedIndexedVectorTest_SupportsMoveOnlyValues) {
+    FixedIndexedVector<std::unique_ptr<int>, uint8_t, 2> vec;
+
+    vec.push_back(std::make_unique<int>(42), 7);
+
+    ASSERT_NE(vec.value(0), nullptr);
+    EXPECT_EQ(*vec.value(0), 42);
+    EXPECT_EQ(vec.index(0), 7u);
+}
+
+TEST(FixedIndexedQueueTest_StartsEmptyWithFixedCapacity) {
+    FixedIndexedQueue<int, uint32_t, 4> queue;
+
+    EXPECT_TRUE(queue.empty());
+    EXPECT_EQ(queue.size(), 0u);
+    EXPECT_EQ(queue.capacity(), 4u);
+}
+
+TEST(FixedIndexedQueueTest_PushStoresValueAndIndex) {
+    FixedIndexedQueue<int, uint16_t, 3> queue;
+
+    queue.push(123, 9);
+
     EXPECT_FALSE(queue.empty());
+    EXPECT_EQ(queue.size(), 1u);
+    EXPECT_EQ(queue.peek(), 123);
+    EXPECT_EQ(queue.index(0), 9u);
+}
+
+TEST(FixedIndexedQueueTest_PopReturnsValueAndIndex) {
+    FixedIndexedQueue<std::string, uint16_t, 3> queue;
+
+    queue.push("alpha", 10);
+
+    auto [value, index] = queue.pop();
+
+    EXPECT_EQ(value, "alpha");
+    EXPECT_EQ(index, 10u);
+    EXPECT_TRUE(queue.empty());
+    EXPECT_EQ(queue.size(), 0u);
+}
+
+TEST(FixedIndexedQueueTest_PopAdvancesToNextElement) {
+    FixedIndexedQueue<int, uint16_t, 3> queue;
+
+    queue.push(10, 1);
+    queue.push(20, 2);
+
+    auto [firstValue, firstIndex] = queue.pop();
+
+    EXPECT_EQ(firstValue, 10);
+    EXPECT_EQ(firstIndex, 1u);
+    EXPECT_EQ(queue.size(), 1u);
+
+    EXPECT_EQ(queue.peek(), 20);
+}
+
+TEST(FixedIndexedQueueTest_PopsInFifoOrder) {
+    FixedIndexedQueue<int, uint16_t, 4> queue;
+
+    queue.push(10, 1);
+    queue.push(20, 2);
+    queue.push(30, 3);
+
+    {
+        auto [value, index] = queue.pop();
+        EXPECT_EQ(value, 10);
+        EXPECT_EQ(index, 1u);
+    }
+
+    {
+        auto [value, index] = queue.pop();
+        EXPECT_EQ(value, 20);
+        EXPECT_EQ(index, 2u);
+    }
+
+    {
+        auto [value, index] = queue.pop();
+        EXPECT_EQ(value, 30);
+        EXPECT_EQ(index, 3u);
+    }
+
+    EXPECT_TRUE(queue.empty());
+}
+
+TEST(FixedIndexedQueueTest_WrapsAroundAfterPopAndPush) {
+    FixedIndexedQueue<int, uint16_t, 3> queue;
+
+    queue.push(10, 1);
+    queue.push(20, 2);
+    queue.push(30, 3);
+
+    auto [firstValue, firstIndex] = queue.pop();
+    EXPECT_EQ(firstValue, 10);
+    EXPECT_EQ(firstIndex, 1u);
+
+    queue.push(40, 4);
+
+    {
+        auto [value, index] = queue.pop();
+        EXPECT_EQ(value, 20);
+        EXPECT_EQ(index, 2u);
+    }
+
+    {
+        auto [value, index] = queue.pop();
+        EXPECT_EQ(value, 30);
+        EXPECT_EQ(index, 3u);
+    }
+
+    {
+        auto [value, index] = queue.pop();
+        EXPECT_EQ(value, 40);
+        EXPECT_EQ(index, 4u);
+    }
+
+    EXPECT_TRUE(queue.empty());
+}
+
+TEST(FixedIndexedQueueTest_ClearResetsQueue) {
+    FixedIndexedQueue<int, uint16_t, 3> queue;
+
+    queue.push(10, 1);
+    queue.push(20, 2);
+
     queue.clear();
+
     EXPECT_TRUE(queue.empty());
+    EXPECT_EQ(queue.size(), 0u);
+
+    queue.push(99, 9);
+
+    EXPECT_EQ(queue.size(), 1u);
+    EXPECT_EQ(queue.peek(), 99);
+
+    auto [value, index] = queue.pop();
+    EXPECT_EQ(value, 99);
+    EXPECT_EQ(index, 9u);
 }
 
-TEST(PriorityQueue_ThrowsOnEmpty) {
-    PriorityQueue<int> queue;
-    bool caughtMinimum = false;
-    bool caughtExtract = false;
+TEST(FixedIndexedQueueTest_SupportsMoveOnlyValues) {
+    FixedIndexedQueue<std::unique_ptr<int>, uint8_t, 2> queue;
 
-    EXPECT_THROW(queue.peek(), std::runtime_error);
-    EXPECT_THROW(queue.pop(), std::runtime_error);
-}
+    queue.push(std::make_unique<int>(42), 7);
 
-TEST(PriorityQueue_CustomComparator) {
-    PriorityQueue<int, std::greater<int>> queue;
-    queue.push(2);
-    queue.push(7);
-    queue.push(4);
-    EXPECT_EQ(7, queue.peek());
-    EXPECT_EQ(7, queue.pop());
-    EXPECT_EQ(4, queue.peek());
-    EXPECT_EQ(4, queue.pop());
-    EXPECT_EQ(2, queue.peek());
-    EXPECT_EQ(2, queue.pop());
-    EXPECT_TRUE(queue.empty());
-}
+    auto [value, index] = queue.pop();
 
-using FifoStableQueue =
-    StableQueue<Queue, int, int, uint32_t, false>;
-
-using AutoPruneFifoStableQueue =
-    StableQueue<Queue, int, int, uint32_t, true>;
-
-using PriorityStableQueue =
-    StableQueue<PriorityQueue, int, int, uint32_t, false>;
-
-using AutoPrunePriorityStableQueue =
-    StableQueue<PriorityQueue, int, int, uint32_t, true>;
-
-TEST(StableQueue_Queue_DefaultConstructedQueueIsEmptyAndNotDead) {
-    FifoStableQueue q;
-
-    EXPECT_TRUE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(0u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
-
-    EXPECT_THROW((void)q.peek(), std::runtime_error);
-    EXPECT_THROW(q.removeFront(), std::runtime_error);
-    EXPECT_THROW(q.addRefForFront(), std::runtime_error);
-
-    std::vector<int> chain;
-    for (const int item : q) {
-        chain.push_back(item);
-    }
-
-    EXPECT_EQ(std::vector<int>{}, chain);
-}
-
-TEST(StableQueue_Queue_PushAndRemoveFrontExposeChainThroughIterator) {
-    FifoStableQueue q;
-
-    q.push(10);
-    q.push(20);
-    q.push(30);
-
-    ASSERT_FALSE(q.empty());
-    ASSERT_FALSE(q.isDead());
-    ASSERT_EQ(3u, q.size());
-    ASSERT_EQ(0u, q.deadSize());
-
-    EXPECT_EQ(10, q.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : q) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{10}), chain);
-    }
-
-    q.removeFront();
-
-    EXPECT_FALSE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(2u, q.size());
-    EXPECT_EQ(1u, q.deadSize());
-    EXPECT_EQ(20, q.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : q) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{20, 10}), chain);
-    }
-
-    q.removeFront();
-
-    EXPECT_FALSE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(1u, q.size());
-    EXPECT_EQ(2u, q.deadSize());
-    EXPECT_EQ(30, q.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : q) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{30, 10}), chain);
-    }
-
-    q.removeFront();
-
-    EXPECT_TRUE(q.empty());
-    EXPECT_TRUE(q.isDead());
-    EXPECT_EQ(0u, q.size());
-    EXPECT_EQ(3u, q.deadSize());
-
-    {
-        std::vector<int> chain;
-        for (const int item : q) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ(std::vector<int>{}, chain);
-    }
-}
-
-TEST(StableQueue_Queue_CannotPushOntoDeadQueue) {
-    FifoStableQueue q;
-
-    q.push(10);
-    q.removeFront();
-
-    ASSERT_TRUE(q.empty());
-    ASSERT_TRUE(q.isDead());
-    ASSERT_EQ(0u, q.size());
-    ASSERT_EQ(1u, q.deadSize());
-
-    EXPECT_THROW(q.push(20), std::invalid_argument);
-}
-
-TEST(StableQueue_Queue_ResetClearsDeadQueueAndAllowsReuse) {
-    FifoStableQueue q;
-
-    q.push(10);
-    q.push(20);
-    q.removeFront();
-    q.removeFront();
-
-    ASSERT_TRUE(q.empty());
-    ASSERT_TRUE(q.isDead());
-    ASSERT_EQ(0u, q.size());
-    ASSERT_EQ(2u, q.deadSize());
-
-    q.reset();
-
-    EXPECT_TRUE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(0u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
-
-    q.push(30);
-    q.push(40);
-
-    EXPECT_FALSE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(2u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
-    EXPECT_EQ(30, q.peek());
-
-    std::vector<int> chain;
-    for (const int item : q) {
-        chain.push_back(item);
-    }
-
-    EXPECT_EQ((std::vector<int>{30}), chain);
-}
-
-TEST(StableQueue_Queue_AddRefForFrontAllowsDeadSubqueueToProduceReplacementItem) {
-    FifoStableQueue destination;
-    FifoStableQueue subqueue;
-
-    destination.push(100);
-    destination.push(200);
-
-    subqueue.push(1);
-    subqueue.addRefForFront();
-    subqueue.removeFront();
-
-    ASSERT_TRUE(subqueue.empty());
-    ASSERT_TRUE(subqueue.isDead());
-    ASSERT_EQ(0u, subqueue.size());
-    ASSERT_EQ(1u, subqueue.deadSize());
-
-    const std::array replacementItems { 300 };
-
-    destination.removeFrontWithDeadSubqueue(subqueue, replacementItems);
-
-    EXPECT_FALSE(destination.empty());
-    EXPECT_FALSE(destination.isDead());
-    EXPECT_EQ(2u, destination.size());
-    EXPECT_EQ(1u, destination.deadSize());
-    EXPECT_EQ(200, destination.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : destination) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{200, 100}), chain);
-    }
-
-    destination.removeFront();
-
-    EXPECT_EQ(300, destination.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : destination) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{300, 100}), chain);
-    }
-}
-
-TEST(StableQueue_Queue_DeadSubqueueWithMultipleDeadNodesMapsReplacementChains) {
-    FifoStableQueue destination;
-    FifoStableQueue subqueue;
-
-    destination.push(100);
-    destination.push(200);
-
-    subqueue.push(10);
-    subqueue.push(20);
-    subqueue.addRefForFront();
-    subqueue.removeFront();
-    subqueue.addRefForFront();
-    subqueue.removeFront();
-
-    ASSERT_TRUE(subqueue.empty());
-    ASSERT_TRUE(subqueue.isDead());
-    ASSERT_EQ(0u, subqueue.size());
-    ASSERT_EQ(2u, subqueue.deadSize());
-
-    const std::array replacementItems {
-        300,
-        400,
-    };
-
-    destination.removeFrontWithDeadSubqueue(subqueue, replacementItems);
-
-    EXPECT_FALSE(destination.empty());
-    EXPECT_FALSE(destination.isDead());
-    EXPECT_EQ(3u, destination.size());
-    EXPECT_EQ(2u, destination.deadSize());
-    EXPECT_EQ(200, destination.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : destination) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{200, 100}), chain);
-    }
-
-    destination.removeFront();
-
-    EXPECT_EQ(300, destination.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : destination) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{300, 100}), chain);
-    }
-
-    destination.removeFront();
-
-    EXPECT_EQ(400, destination.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : destination) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{400, 20, 100}), chain);
-    }
-}
-
-TEST(StableQueue_Queue_RemoveFrontWithEmptySubqueueJustRemovesFront) {
-    FifoStableQueue destination;
-    FifoStableQueue subqueue;
-
-    destination.push(100);
-    destination.push(200);
-
-    const std::array<int, 0> replacementItems {};
-
-    destination.removeFrontWithDeadSubqueue(subqueue, replacementItems);
-
-    EXPECT_FALSE(destination.empty());
-    EXPECT_FALSE(destination.isDead());
-    EXPECT_EQ(1u, destination.size());
-    EXPECT_EQ(1u, destination.deadSize());
-    EXPECT_EQ(200, destination.peek());
-
-    std::vector<int> chain;
-    for (const int item : destination) {
-        chain.push_back(item);
-    }
-
-    EXPECT_EQ((std::vector<int>{200, 100}), chain);
-}
-
-TEST(StableQueue_Queue_RemoveFrontWithDeadSubqueueRejectsMismatchedReplacementCount) {
-    FifoStableQueue destination;
-    FifoStableQueue subqueue;
-
-    destination.push(100);
-
-    subqueue.push(1);
-    subqueue.addRefForFront();
-    subqueue.removeFront();
-
-    ASSERT_TRUE(subqueue.isDead());
-
-    const std::array<int, 0> tooFewItems {};
-    const std::array tooManyItems {
-        300,
-        400,
-    };
-
-    EXPECT_THROW(
-        destination.removeFrontWithDeadSubqueue(subqueue, tooFewItems),
-        std::invalid_argument
-    );
-
-    EXPECT_THROW(
-        destination.removeFrontWithDeadSubqueue(subqueue, tooManyItems),
-        std::invalid_argument
-    );
-
-    EXPECT_EQ(100, destination.peek());
-    EXPECT_EQ(1u, destination.size());
-    EXPECT_EQ(0u, destination.deadSize());
-}
-
-TEST(StableQueue_Queue_RemoveFrontWithDeadSubqueueRejectsAliveSubqueue) {
-    FifoStableQueue destination;
-    FifoStableQueue subqueue;
-
-    destination.push(100);
-
-    subqueue.push(1);
-    subqueue.addRefForFront();
-
-    ASSERT_FALSE(subqueue.empty());
-    ASSERT_FALSE(subqueue.isDead());
-    ASSERT_EQ(1u, subqueue.size());
-    ASSERT_EQ(0u, subqueue.deadSize());
-
-    const std::array replacementItems { 300 };
-
-    EXPECT_THROW(
-        destination.removeFrontWithDeadSubqueue(subqueue, replacementItems),
-        std::invalid_argument
-    );
-
-    EXPECT_EQ(100, destination.peek());
-    EXPECT_EQ(1u, destination.size());
-    EXPECT_EQ(0u, destination.deadSize());
-}
-
-TEST(StableQueue_Queue_RemoveFrontWithDeadSubqueueRejectsEmptyDestination) {
-    FifoStableQueue destination;
-    FifoStableQueue subqueue;
-
-    subqueue.push(1);
-    subqueue.addRefForFront();
-    subqueue.removeFront();
-
-    ASSERT_TRUE(destination.empty());
-    ASSERT_TRUE(subqueue.isDead());
-
-    const std::array replacementItems { 300 };
-
-    EXPECT_THROW(
-        destination.removeFrontWithDeadSubqueue(subqueue, replacementItems),
-        std::runtime_error
-    );
-}
-
-TEST(StableQueue_Queue_PruneDeadKeepsOnlyChainNeededByFront) {
-    FifoStableQueue q;
-
-    q.push(10);
-    q.push(20);
-    q.removeFront();
-    q.removeFront();
-
-    ASSERT_TRUE(q.isDead());
-    ASSERT_EQ(0u, q.size());
-    ASSERT_EQ(2u, q.deadSize());
-
-    q.reset();
-
-    q.push(30);
-    q.push(40);
-    q.removeFront();
-
-    ASSERT_EQ(1u, q.size());
-    ASSERT_EQ(1u, q.deadSize());
-    ASSERT_EQ(40, q.peek());
-
-    q.pruneDead();
-
-    EXPECT_EQ(1u, q.size());
-    EXPECT_EQ(1u, q.deadSize());
-    EXPECT_EQ(40, q.peek());
-
-    std::vector<int> chain;
-    for (const int item : q) {
-        chain.push_back(item);
-    }
-
-    EXPECT_EQ((std::vector<int>{40, 30}), chain);
-}
-
-TEST(StableQueue_Queue_AutoPrunePreservesFrontChainWhenGrowing) {
-    AutoPruneFifoStableQueue q(1, 1, 1);
-
-    q.push(10);
-    q.push(20);
-    q.removeFront();
-
-    ASSERT_EQ(1u, q.size());
-    ASSERT_EQ(1u, q.deadSize());
-    ASSERT_EQ(20, q.peek());
-
-    q.push(30);
-    q.push(40);
-
-    EXPECT_EQ(3u, q.size());
-    EXPECT_EQ(1u, q.deadSize());
-    EXPECT_EQ(20, q.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : q) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{20, 10}), chain);
-    }
-
-    q.removeFront();
-
-    EXPECT_EQ(30, q.peek());
-
-    {
-        std::vector<int> chain;
-        for (const int item : q) {
-            chain.push_back(item);
-        }
-
-        EXPECT_EQ((std::vector<int>{30, 20, 10}), chain);
-    }
-}
-
-TEST(StableQueue_PriorityQueue_KeepsFrontStableWhenNewItemsDoNotOvertakeFront) {
-    PriorityStableQueue q;
-
-    q.push(10);
-    q.push(20);
-    q.push(30);
-
-    EXPECT_FALSE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(3u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
-    EXPECT_EQ(10, q.peek());
-
-    std::vector<int> chain;
-    for (const int item : q) {
-        chain.push_back(item);
-    }
-
-    EXPECT_EQ((std::vector<int>{10}), chain);
-}
-
-TEST(StableQueue_PriorityQueue_RejectsPushThatWouldMoveFrontNode) {
-    PriorityStableQueue q;
-
-    q.push(30);
-
-    EXPECT_THROW(q.push(10), std::invalid_argument);
-
-    EXPECT_FALSE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(2u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
-
-    // The attempted push already inserted into the underlying priority queue
-    // before the StableQueue swap callback rejected moving the front node.
-    // Reset is the supported recovery path after this kind of failed mutation.
-    q.reset();
-
-    EXPECT_TRUE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(0u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
-}
-
-TEST(StableQueue_PriorityQueue_SingleElementPriorityQueueCanBecomeDead) {
-    PriorityStableQueue q;
-
-    q.push(10);
-
-    ASSERT_EQ(10, q.peek());
-    ASSERT_EQ(1u, q.size());
-    ASSERT_EQ(0u, q.deadSize());
-
-    q.removeFront();
-
-    EXPECT_TRUE(q.empty());
-    EXPECT_TRUE(q.isDead());
-    EXPECT_EQ(0u, q.size());
-    EXPECT_EQ(1u, q.deadSize());
-
-    EXPECT_THROW(q.push(20), std::invalid_argument);
-}
-
-TEST(StableQueue_PriorityQueue_RemoveFrontPreservesIndices) {
-    PriorityStableQueue q;
-
-    q.push(0);
-    q.push(1);
-    q.push(2);
-    
-    q.removeFront();
-
-    q.push(3);
-
-    q.removeFront();
-    q.removeFront();
-
-    std::vector<int> chain;
-    for (const int item : q) {
-        chain.push_back(item);
-    }
-
-    EXPECT_EQ((std::vector<int>{3, 1, 0}), chain);
-}
-
-TEST(StableQueue_PriorityQueue_AutoPrunePriorityQueueRejectsFrontMovingPush) {
-    AutoPrunePriorityStableQueue q(1, 1, 1);
-
-    q.push(50);
-
-    EXPECT_THROW(q.push(40), std::invalid_argument);
-
-    q.reset();
-
-    EXPECT_TRUE(q.empty());
-    EXPECT_FALSE(q.isDead());
-    EXPECT_EQ(0u, q.size());
-    EXPECT_EQ(0u, q.deadSize());
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*value, 42);
+    EXPECT_EQ(index, 7u);
 }
 
 TEST(SolutionSearch_OneMoveLongTrack) {

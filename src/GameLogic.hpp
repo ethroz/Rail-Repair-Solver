@@ -17,9 +17,8 @@
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
-#include "PriorityQueue.hpp"
-#include "Queue.hpp"
-#include "StableQueue.hpp"
+#include "StableFixedQueue.hpp"
+#include "StablePriorityQueue.hpp"
 
 using Stamp = size_t;
 
@@ -269,13 +268,16 @@ Direction getStepDirection(
     return stepDir;
 }
 
-using StateQueue = StableQueue<PriorityQueue, State, DeadState, uint32_t, true, false>;
-using PosQueue = StableQueue<Queue, RankedDeadState, DeadState, uint8_t, false, true>;
+using StateQueue = StablePriorityQueue<State, DeadState, uint32_t, true>;
+constexpr size_t MAX_NEXT_STATES = MAX_OBJECTS * MAX_DIR + MAX_LEVERS;
+// Based on max number of elements we could possibly see in the queue.
+constexpr size_t MAX_POS_QUEUE_SIZE = MAX_OBJECTS * 2;
+using MoveQueue = StableFixedQueue<RankedDeadState, DeadState, State, MAX_POS_QUEUE_SIZE, BASE, MAX_NEXT_STATES, uint8_t>;
 
 std::vector<Direction> buildSolution(
     const Grid& grid,
     const StateQueue& queue,
-    const PosQueue& posQueue,
+    const MoveQueue& posQueue,
     const State& lastState
 ) {
     std::vector<Direction> solution;
@@ -316,16 +318,10 @@ std::vector<Direction> search(
 
     Rank bestRank = std::numeric_limits<Rank>::max();
     std::vector<Direction> bestMoves;
-    
-    constexpr size_t MAX_NEXT_STATES = MAX_OBJECTS * MAX_DIR + MAX_LEVERS;
-    // Based on max number of elements we could possibly see in the queue.
-    constexpr size_t MAX_POS_QUEUE_SIZE = MAX_OBJECTS * 2;
 
     constexpr Stamp MAX_STAMP = std::numeric_limits<Stamp>::max();
     std::array<std::array<Stamp, 16>, 16> posVisitedStamp = {};
-    PosQueue posQueue(MAX_POS_QUEUE_SIZE, BASE, MAX_NEXT_STATES);
-
-    absl::InlinedVector<State, MAX_NEXT_STATES> nextStates;
+    MoveQueue moveQueue;
 
     for (uint8_t y = 0; y < grid.height; ++y) {
         for (uint8_t x = 0; x < grid.width; ++x) {
@@ -364,16 +360,15 @@ std::vector<Direction> search(
             std::cout.flush();
         }
 
-        posQueue.reset();
-        nextStates.clear();
+        moveQueue.reset();
 
-        posQueue.push(currentState);
+        moveQueue.push(currentState);
 
-        while (!posQueue.empty()) {
-            const auto& posState = posQueue.peek();
+        while (!moveQueue.empty()) {
+            const auto& posState = moveQueue.peek();
             Stamp& stamp = posVisitedStamp[posState.player.y()][posState.player.x()];
             if (stamp >= stats.iterations) {
-                posQueue.removeFront();
+                moveQueue.removeFront();
                 continue;
             }
             stamp = stats.iterations;
@@ -391,7 +386,7 @@ std::vector<Direction> search(
                         auto nextPosState = posState;
                         nextPosState.player = nextMove;
                         nextPosState.rank++;
-                        posQueue.push(std::move(nextPosState));
+                        moveQueue.push(std::move(nextPosState));
                     }
                     else if (nextCell.isTrack()) {
                         const auto nextNextMove = nextMove + dir;
@@ -412,8 +407,7 @@ std::vector<Direction> search(
                         auto [it, inserted] = visited.try_emplace(nextState.encode(grid.objectCount), nextState.rank);
                         if (inserted || it->second > nextState.rank) {
                             it->second = nextState.rank;
-                            posQueue.addRefForFront();
-                            nextStates.push_back(std::move(nextState));
+                            moveQueue.pushExtern(std::move(nextState));
                         }
                     }
                 }
@@ -429,26 +423,25 @@ std::vector<Direction> search(
 
                     if (nextState.numToggledLevers() == startList.size() && nextState.rank < bestRank) {
                         bestRank = nextState.rank;
-                        bestMoves = buildSolution(grid, queue, posQueue, nextState);
+                        bestMoves = buildSolution(grid, queue, moveQueue, nextState);
                         std::cout << std::format("Found a solution with {} moves.\n", bestRank);
                     }
                     else {
                         auto [it, inserted] = visited.try_emplace(nextState.encode(grid.objectCount), nextState.rank);
                         if (inserted || it->second > nextState.rank) {
                             it->second = nextState.rank;
-                            posQueue.addRefForFront();
-                            nextStates.push_back(std::move(nextState));
+                            moveQueue.pushExtern(std::move(nextState));
                         }
                     }
                 }
             }
 
-            posQueue.removeFront();
+            moveQueue.removeFront();
         }
         
-        // posQueue.pruneDead();
+        // moveQueue.pruneDead();
         
-        queue.removeFrontWithDeadSubqueue(posQueue, nextStates);
+        queue.removeFrontWithDeadSubqueue(moveQueue);
     }
 
     stats.visited = visited.size();
