@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import statistics
 import subprocess
 import time
@@ -9,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOLVER_EXE = REPO_ROOT / "build" / "Release" / "rail_repair_solver.exe"
+SOLVER_EXE = REPO_ROOT / "build" / "Release" / f"rail_repair_solver{'.exe' if os.name == 'nt' else ''}"
 
 
 @dataclass
