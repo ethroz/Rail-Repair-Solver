@@ -1,19 +1,16 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cassert>
 #include <concepts>
 #include <cstddef>
-#include <cstdint>
-#include <iostream>
 #include <limits>
 #include <ranges>
-#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "FixedIndexedQueue.hpp"
 #include "FixedIndexedVector.hpp"
@@ -26,7 +23,8 @@ template<
     size_t DeadSize,
     size_t ExternSize,
     std::unsigned_integral Index = size_t
-> requires std::constructible_from<Dead, Alive>
+> requires std::constructible_from<Dead, Alive> &&
+    (DeadSize < std::numeric_limits<Index>::max())
 class StableFixedQueue {
 private:
     static constexpr Index NO_INDEX = std::numeric_limits<Index>::max();
@@ -45,15 +43,17 @@ public:
     [[nodiscard]] constexpr bool isDead() const { return !m_dead.empty() && m_alive.empty(); }
 
     constexpr void reset() {
-        m_alive.clear();
         m_dead.clear();
+        m_alive.clear();
         m_extern.clear();
+        m_frontHasRef = false;
     }
 
     template<typename U>
     constexpr void push(U&& item) {
         assert(!isDead());
         m_alive.push(std::forward<U>(item), peekIndex());
+        m_frontHasRef = true;
         checkInvariants();
     }
 
@@ -61,6 +61,7 @@ public:
     constexpr void pushExtern(U&& ext) {
         assert(!isDead());
         m_extern.push_back(std::forward<U>(ext), peekIndex());
+        m_frontHasRef = true;
         checkInvariants();
     }
 
@@ -72,7 +73,10 @@ public:
     constexpr void removeFront() {
         assert(!m_alive.empty());
         auto&& [item, index] = m_alive.pop();
-        m_dead.push_back(Dead(std::move(item)), std::move(index));
+        if (m_frontHasRef) {
+            m_dead.push_back(Dead(std::move(item)), std::move(index));
+            m_frontHasRef = false;
+        }
         checkInvariants();
     }
 
@@ -90,11 +94,13 @@ public:
             return;
         }
 
-        std::vector<uint8_t> live(oldDeadSize, 0);
+        std::array<bool, DeadSize> live{};
+        std::array<Index, DeadSize + 1> remap{};
+        remap.fill(NO_INDEX);
+
         for (Index i = oldDeadSize; i < totalSize; ++i) {
             Index index = i;
             while (index >= oldDeadSize) {
-                assert(index < maxIndex);
                 index = prevIndexAt(index);
             }
 
@@ -104,12 +110,10 @@ public:
                     break;
                 }
 
-                live[index] = 1;
+                live[index] = true;
                 index = prevIndexAt(index);
             }
         }
-
-        std::vector<Index> remap(maxIndex, NO_INDEX);
 
         Index writeDeadIndex = 0;
         for (Index readDeadIndex = 0; readDeadIndex < oldDeadSize; ++readDeadIndex) {
@@ -199,11 +203,11 @@ private:
         return m_extern.index(externIndex);
     }
 
-    template<class Container>
+    template<class Container, class Remap>
     constexpr void remapPrevIndices(
         Container& container,
         Index maxIndex,
-        const std::vector<Index>& remap
+        const Remap& remap
     ) {
         for (size_t i = 0; i < container.size(); ++i) {
             Index& prevIndex = container.index(i);
@@ -289,4 +293,5 @@ private:
     FixedIndexedVector<Dead, Index, DeadSize> m_dead;
     FixedIndexedQueue<Alive, Index, AliveSize> m_alive;
     FixedIndexedVector<Extern, Index, ExternSize> m_extern;
+    bool m_frontHasRef = false;
 };

@@ -50,6 +50,7 @@ public:
     constexpr void reset() {
         m_alive.clear();
         m_dead.clear();
+        m_frontHasRef = false;
     }
 
     template<typename U>
@@ -58,8 +59,8 @@ public:
         if constexpr (AutoPrune) {
             pruneBeforeGrowth(1);
         }
-        Index prevIndex = peekIndex();
-        m_alive.push(std::forward<U>(item), std::move(prevIndex));
+        m_alive.push(std::forward<U>(item), peekIndex());
+        m_frontHasRef = true;
         checkInvariants();
     }
 
@@ -71,7 +72,10 @@ public:
     constexpr void removeFront() {
         assert(!empty());
         auto&& [item, index] = m_alive.pop();
-        m_dead.push_back(Dead(std::move(item)), std::move(index));
+        if (m_frontHasRef) {
+            m_dead.push_back(Dead(std::move(item)), std::move(index));
+            m_frontHasRef = false;
+        }
         checkInvariants();
     }
 
@@ -102,6 +106,7 @@ public:
             pruneBeforeGrowth(numDeadToKeep + size);
         }
 
+        m_frontHasRef = true;
         removeFront();
         assert(!m_dead.empty());
 
@@ -396,4 +401,5 @@ private:
 
     IndexedVector<Dead, Index> m_dead;
     IndexedPriorityQueue<Alive, Index> m_alive;
+    bool m_frontHasRef = false;
 };
