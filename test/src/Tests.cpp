@@ -198,7 +198,7 @@ TEST(LevelParsing) {
     }
 }
 
-TEST(FindGoals_Level1) {
+TEST(FindEndStates_Level1) {
     constexpr std::string_view level =
         "######\n"
         "1 HHL#\n"
@@ -210,7 +210,7 @@ TEST(FindGoals_Level1) {
     const auto [grid, state] = stateFromString(level);
     const auto startList = createStartList(grid);
 
-    const auto endStates = findGoals(grid, startList, state, 0);
+    const auto endStates = findEndStates(grid, startList, state, 0);
     ASSERT_EQ(1u, endStates.size());
     ASSERT_EQ(2u, grid.objectCount);
     EXPECT_EQ(MOVABLE_V,       endStates[0].objects[0]);
@@ -219,7 +219,7 @@ TEST(FindGoals_Level1) {
     EXPECT_EQ((Position{1,1}), endStates[0].objectPositions[1]);
 }
 
-TEST(FindGoals_Level2) {
+TEST(FindEndStates_Level2) {
     constexpr std::string_view level =
         "#######\n"
         "#D HHL#\n"
@@ -233,7 +233,7 @@ TEST(FindGoals_Level2) {
     const auto [grid, state] = stateFromString(level);
     const auto startList = createStartList(grid);
 
-    const auto endStates = findGoals(grid, startList, state, 0);
+    const auto endStates = findEndStates(grid, startList, state, 0);
     ASSERT_EQ(2u, endStates.size());
     ASSERT_EQ(3u, grid.objectCount);
     EXPECT_EQ(MOVABLE_V,       endStates[0].objects[0]);

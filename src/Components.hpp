@@ -64,6 +64,35 @@ public:
 
     constexpr uint8_t value() const { return uint8_t(m_cell); }
 
+    constexpr explicit operator char() const {
+        switch (m_cell) {
+        case PLAYER:       return '@';
+        case FLOOR:        return ' ';
+        case WALL:         return '#';
+        case HOLE:         return '*';
+        case LEVER1:       return '1';
+        case LEVER2:       return '2';
+        case LEVER3:       return '3';
+        case TRACK1:       return '1';
+        case TRACK2:       return '2';
+        case TRACK3:       return '3';
+        case IMMOVABLE_NW: return 'U';
+        case IMMOVABLE_NE: return 'R';
+        case IMMOVABLE_SE: return 'D';
+        case IMMOVABLE_SW: return 'L';
+        case IMMOVABLE_H:  return 'H';
+        case IMMOVABLE_V:  return 'V';
+        case MOVABLE_NW:   return 'u';
+        case MOVABLE_NE:   return 'r';
+        case MOVABLE_SE:   return 'd';
+        case MOVABLE_SW:   return 'l';
+        case MOVABLE_H:    return 'h';
+        case MOVABLE_V:    return 'v';
+        case NOTHING:      return '\0';
+        default: throw std::invalid_argument(std::format("Invalid cell value for char: {}", uint8_t(m_cell)));
+        }
+    }
+
     friend constexpr bool operator==(Cell a, Cell b) { return a.m_cell == b.m_cell; }
     friend constexpr bool operator>(Cell a, Cell b) { return a.m_cell > b.m_cell; }
     friend constexpr bool operator<(Cell a, Cell b) { return a.m_cell < b.m_cell; }
@@ -232,6 +261,19 @@ public:
     constexpr Cell& at(Position p) { return m_data[p.y()][p.x()]; }
     constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }
     constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[y][x]; }
+
+    constexpr std::string toString(const State& state) const {
+        const uint8_t lineWidth = width + 1;
+        std::string out(lineWidth * height, '\0');
+        for (uint8_t y = 0; y < height; ++y) {
+            uint8_t x = 0;
+            for (; x < width; ++x) {
+                out[y * lineWidth + x] = char(at(state, {x, y}).cell);
+            }
+            out[y * lineWidth + x] = '\n';
+        }
+        return out;
+    }
 
     uint8_t width = 0;
     uint8_t height = 0;

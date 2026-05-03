@@ -46,38 +46,56 @@ void writeSolutionFile(
     file << std::format("Solution: {}", solution.empty() ? "No solution found" : solution) << std::endl;
 }
 
-bool solveLevel(const std::string& levelStr, bool saveResult = true) {
+bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
     size_t level = std::stoll(levelStr);
     const std::filesystem::path levelPath = repoPath / "levels" / std::format("level{}.txt", level);
     const std::string fileContents = readFile(levelPath);
     const auto [grid, state] = stateFromString(fileContents);
     StartList startList = createStartList(grid);
 
-    const auto startTime = std::chrono::steady_clock::now();
-    const auto solution = search(grid, startList, state, done);
-    const auto runtime = std::chrono::steady_clock::now() - startTime;
-    std::cout << std::endl;
-    printStats(std::cout);
-    if (done) {
-        return false;
-    }
-    std::string solutionStr;
-    if (solution.empty()) {
-        std::cout << "No solution found" << std::endl;
+    if (findGoals) {
+        const auto startTime = std::chrono::steady_clock::now();
+        const auto endStates = findEndStates(grid, startList, state, 0);
+        const auto runtime = std::chrono::steady_clock::now() - startTime;
+        std::cout << "Ran in " << runtime << std::endl;
+        if (endStates.empty()) {
+            std::cout << "No end states found" << std::endl;
+            return false;
+        }
+        std::cout << "Found " << endStates.size() << " end states" << std::endl;
+        for (const auto& endState : endStates) {
+            std::cout << '\n' << grid.toString(endState);
+        }
+        std::cout.flush();
+        return true;
     }
     else {
-        solutionStr.reserve(solution.size());
-        for (auto move : solution) {
-            solutionStr += char(move);
+        const auto startTime = std::chrono::steady_clock::now();
+        const auto solution = search(grid, startList, state, done);
+        const auto runtime = std::chrono::steady_clock::now() - startTime;
+        std::cout << std::endl;
+        printStats(std::cout);
+        if (done) {
+            return false;
         }
-        std::cout << std::format("Solution found: {}", solutionStr) << std::endl;
+        std::string solutionStr;
+        if (solution.empty()) {
+            std::cout << "No solution found" << std::endl;
+        }
+        else {
+            solutionStr.reserve(solution.size());
+            for (auto move : solution) {
+                solutionStr += char(move);
+            }
+            std::cout << std::format("Solution found: {}", solutionStr) << std::endl;
+        }
+    
+        if (saveResult) {
+            writeSolutionFile(level, runtime, solutionStr);
+        }
+    
+        return !solution.empty();
     }
-
-    if (saveResult) {
-        writeSolutionFile(level, runtime, solutionStr);
-    }
-
-    return !solution.empty();
 }
 
 int main(int argc, char* argv[]) {
@@ -85,10 +103,14 @@ int main(int argc, char* argv[]) {
 
     std::string levelStr;
     bool saveResult = true;
+    bool findGoals = false;
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
         if (arg == "--no-save") {
             saveResult = false;
+        }
+        else if (arg == "--find-goals") {
+            findGoals = true;
         }
         else if (std::isdigit(arg[0])) {
             levelStr = arg;
@@ -116,7 +138,7 @@ int main(int argc, char* argv[]) {
             }
 
             try {
-                solveLevel(levelStr, saveResult);
+                solveLevel(levelStr, saveResult, findGoals);
             }
             catch (const std::exception& e) {
                 std::cerr << e.what() << std::endl;
@@ -128,7 +150,7 @@ int main(int argc, char* argv[]) {
     }
     else {
         try {
-            return solveLevel(levelStr, saveResult) ? 0 : 1;
+            return solveLevel(levelStr, saveResult, findGoals) ? 0 : 1;
         }
         catch (const std::exception& e) {
             std::cerr << e.what() << std::endl;

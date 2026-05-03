@@ -210,7 +210,7 @@ StartList createStartList(const Grid& grid) {
     return list;
 }
 
-std::vector<State> findGoals(
+std::vector<State> findEndStates(
     const Grid& grid,
     const StartList& startList,
     const State& startState,
