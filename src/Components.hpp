@@ -228,25 +228,28 @@ public:
     constexpr Grid() = default;
 
     constexpr LookupResult at(const State& state, Position p) const {
+        uint8_t floorIndex = 0xFF;
+
         for (uint8_t i = 0; i < objectCount; ++i) {
-            if (state.objects[i] == FLOOR) {
+            if (state.objectPositions[i] != p) {
                 continue;
             }
-            if (state.objectPositions[i] == p) {
-                return {state.objects[i], i};
-            }
-        }
-        for (uint8_t i = 0; i < objectCount; ++i) {
+
             if (state.objects[i] != FLOOR) {
-                continue;
-            }
-            if (state.objectPositions[i] == p) {
                 return {state.objects[i], i};
             }
+
+            floorIndex = i;
         }
+
+        if (floorIndex != 0xFF) {
+            return {FLOOR, floorIndex};
+        }
+
         if (state.player == p) {
             return {PLAYER, 0xFF};
         }
+
         return {at(p), 0xFF};
     }
 
