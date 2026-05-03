@@ -193,8 +193,8 @@ StartList createStartList(const Grid& grid) {
                 const bool right = x == grid.width - 1;
                 const bool bottom = y == grid.height - 1;
                 const bool left = x == 0;
-                uint8_t flags = (top ? 0b1000 : 0) | (right ? 0b0100 : 0) | (bottom ? 0b0010 : 0) | (left ? 0b0001 : 0);
-                switch (flags) {
+                uint8_t used = (top ? 0b1000 : 0) | (right ? 0b0100 : 0) | (bottom ? 0b0010 : 0) | (left ? 0b0001 : 0);
+                switch (used) {
                 case 0b1000: dir = DOWN;  break;
                 case 0b0100: dir = LEFT;  break;
                 case 0b0010: dir = UP;    break;
@@ -219,16 +219,20 @@ std::vector<State> findEndStates(
     std::vector<State> endStates;
     State state = startState;
     std::array<bool, MAX_OBJECTS> flagBuffer{};
-    std::span<bool> flags = std::span(flagBuffer).subspan(0, grid.objectCount);
+    std::span<bool> used = std::span(flagBuffer).subspan(0, grid.objectCount);
     Position leverPos = grid.find(CELL(IMMOVABLE | LEVER | index));
+    
+    for (uint8_t i = 0; i < grid.objectCount; ++i) {
+        state.objectPositions[i] = {X_MAX, Y_MAX};
+    }
 
     [&](this auto&& self, Vector v) -> void {
         while (true) {
             v.pos += v.dir;
             Cell cell = grid.at(state, v.pos).cell;
             if (!cell.isTrack()) {
-                for (size_t i = 0; i < flags.size(); ++i) {
-                    if (flags[i]) {
+                for (size_t i = 0; i < used.size(); ++i) {
+                    if (used[i]) {
                         continue;
                     }
                     Cell object = state.objects[i];
@@ -236,20 +240,24 @@ std::vector<State> findEndStates(
                     Direction newDir = object.trackType().ride(v.dir);
                     if (newDir != NONE) {
                         std::swap(state.objectPositions[i], v.pos);
-                        flags[i] = true;
+                        used[i] = true;
                         self({state.objectPositions[i], newDir});
-                        flags[i] = false;
+                        used[i] = false;
                         std::swap(state.objectPositions[i], v.pos);
                     }
                 }
                 return;
             }
             else {
+                if (cell.isStart()) {
+                    return;
+                }
+
                 v.dir = cell.trackType().ride(v.dir);
                 if (v.dir == NONE) {
                     return;
                 }
-    
+
                 if (grid.exits(v)) {
                     for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
                         const Direction dir = DIRECTION(dirValue);
