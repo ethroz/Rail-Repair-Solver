@@ -164,3 +164,8 @@ struct Position {
 private:
     uint8_t m_bits = 0;
 };
+
+struct Vector {
+    Position pos{};
+    Direction dir{};
+};

@@ -221,6 +221,13 @@ public:
         return {at(p), 0xFF};
     }
 
+    constexpr bool exits(const Vector& v) const {
+        return (v.pos.y() == 0 && v.dir == UP) ||
+               (v.pos.x() == width - 1 && v.dir == RIGHT) ||
+               (v.pos.y() == height - 1 && v.dir == DOWN) ||
+               (v.pos.x() == 0 && v.dir == LEFT);
+    }
+
     constexpr const Cell& at(Position p) const { return m_data[p.y()][p.x()]; }
     constexpr Cell& at(Position p) { return m_data[p.y()][p.x()]; }
     constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }

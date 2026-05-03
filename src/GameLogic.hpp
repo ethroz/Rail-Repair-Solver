@@ -157,11 +157,6 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
     return { grid, state };
 }
 
-struct Vector {
-    Position pos{};
-    Direction dir{};
-};
-
 struct StartList {
     constexpr size_t size() const { return m_size; }
 
@@ -215,6 +210,58 @@ StartList createStartList(const Grid& grid) {
     return list;
 }
 
+std::vector<State> findGoals(
+    const Grid& grid,
+    const StartList& startList,
+    const State& startState,
+    uint8_t index
+) {
+    std::vector<State> endStates;
+    State state = startState;
+    std::array<bool, MAX_OBJECTS> flagBuffer{};
+    std::span<bool> flags = std::span(flagBuffer).subspan(0, grid.objectCount);
+
+    auto startVec = startList.at(index);
+
+    [&](this auto&& self, Vector v) -> void {
+        while (true) {
+            v.pos += v.dir;
+            Cell cell = grid.at(state, v.pos).cell;
+            if (!cell.isTrack()) {
+                for (size_t i = 0; i < flags.size(); ++i) {
+                    if (flags[i]) {
+                        continue;
+                    }
+                    Cell object = state.objects[i];
+                    assert(object.isTrack());
+                    Direction newDir = object.trackType().ride(v.dir);
+                    if (newDir != NONE) {
+                        std::swap(state.objectPositions[i], v.pos);
+                        flags[i] = true;
+                        self({state.objectPositions[i], newDir});
+                        flags[i] = false;
+                        std::swap(state.objectPositions[i], v.pos);
+                    }
+                }
+                return;
+            }
+            else {
+                v.dir = cell.trackType().ride(v.dir);
+                if (v.dir == NONE) {
+                    return;
+                }
+    
+                if (grid.exits(v)) {
+                    endStates.push_back(state);
+                    return;
+                }
+            }
+        }
+    }(startVec);
+
+    return endStates;
+}
+
 bool simulateTrain(
     const Grid& grid,
     const StartList& startList,
@@ -232,12 +279,7 @@ bool simulateTrain(
         }
         dir = cell.trackType().ride(dir);
 
-        const bool exitsGrid =
-            (pos.y() == 0 && dir == UP) ||
-            (pos.x() == grid.width - 1 && dir == RIGHT) ||
-            (pos.y() == grid.height - 1 && dir == DOWN) ||
-            (pos.x() == 0 && dir == LEFT);
-        if (exitsGrid) {
+        if (grid.exits({pos, dir})) {
             return true;
         }
     }

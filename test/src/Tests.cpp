@@ -198,6 +198,59 @@ TEST(LevelParsing) {
     }
 }
 
+TEST(FindGoals_Level1) {
+    constexpr std::string_view level =
+        "######\n"
+        "1 HHL#\n"
+        "# v  #\n"
+        "#h# V#\n"
+        "#@#1V#\n"
+        "####V#\n";
+
+    const auto [grid, state] = stateFromString(level);
+    const auto startList = createStartList(grid);
+
+    const auto endStates = findGoals(grid, startList, state, 0);
+    ASSERT_EQ(1u, endStates.size());
+    ASSERT_EQ(2u, grid.objectCount);
+    EXPECT_EQ(MOVABLE_V,       endStates[0].objects[0]);
+    EXPECT_EQ((Position{4,2}), endStates[0].objectPositions[0]);
+    EXPECT_EQ(MOVABLE_H,       endStates[0].objects[1]);
+    EXPECT_EQ((Position{1,1}), endStates[0].objectPositions[1]);
+}
+
+TEST(FindGoals_Level2) {
+    constexpr std::string_view level =
+        "#######\n"
+        "#D HHL#\n"
+        "#V  1V#\n"
+        "#  v V#\n"
+        "#Vhv  #\n"
+        "HU@  V#\n"
+        "#####1#\n";
+
+
+    const auto [grid, state] = stateFromString(level);
+    const auto startList = createStartList(grid);
+
+    const auto endStates = findGoals(grid, startList, state, 0);
+    ASSERT_EQ(2u, endStates.size());
+    ASSERT_EQ(3u, grid.objectCount);
+    EXPECT_EQ(MOVABLE_V,       endStates[0].objects[0]);
+    EXPECT_EQ((Position{5,4}), endStates[0].objectPositions[0]);
+    EXPECT_EQ(MOVABLE_H,       endStates[0].objects[1]);
+    EXPECT_EQ((Position{2,1}), endStates[0].objectPositions[1]);
+    EXPECT_EQ(MOVABLE_V,       endStates[0].objects[2]);
+    EXPECT_EQ((Position{1,3}), endStates[0].objectPositions[2]);
+
+    EXPECT_EQ(MOVABLE_V,       endStates[1].objects[0]);
+    EXPECT_EQ((Position{1,3}), endStates[1].objectPositions[0]);
+    EXPECT_EQ(MOVABLE_H,       endStates[1].objects[1]);
+    EXPECT_EQ((Position{2,1}), endStates[1].objectPositions[1]);
+    EXPECT_EQ(MOVABLE_V,       endStates[1].objects[2]);
+    EXPECT_EQ((Position{5,4}), endStates[1].objectPositions[2]);
+}
+
 TEST(SimulateTrain) {
     constexpr std::string_view level =
         "########\n"
