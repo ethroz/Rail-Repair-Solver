@@ -220,8 +220,7 @@ std::vector<State> findEndStates(
     State state = startState;
     std::array<bool, MAX_OBJECTS> flagBuffer{};
     std::span<bool> flags = std::span(flagBuffer).subspan(0, grid.objectCount);
-
-    auto startVec = startList.at(index);
+    Position leverPos = grid.find(CELL(IMMOVABLE | LEVER | index));
 
     [&](this auto&& self, Vector v) -> void {
         while (true) {
@@ -252,12 +251,20 @@ std::vector<State> findEndStates(
                 }
     
                 if (grid.exits(v)) {
-                    endStates.push_back(state);
+                    for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
+                        const Direction dir = DIRECTION(dirValue);
+                        Position pos = leverPos + dir;
+                        if (grid.at(state, pos).cell.isEmpty()) {
+                            std::swap(state.player, pos);
+                            endStates.push_back(state);
+                            std::swap(state.player, pos);
+                        }
+                    }
                     return;
                 }
             }
         }
-    }(startVec);
+    }(startList.at(index));
 
     return endStates;
 }

@@ -227,6 +227,11 @@ public:
 
     constexpr Grid() = default;
 
+    constexpr const Cell& at(Position p) const { return m_data[p.y()][p.x()]; }
+    constexpr Cell& at(Position p) { return m_data[p.y()][p.x()]; }
+    constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }
+    constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[y][x]; }
+
     constexpr LookupResult at(const State& state, Position p) const {
         uint8_t floorIndex = 0xFF;
 
@@ -253,17 +258,23 @@ public:
         return {at(p), 0xFF};
     }
 
+    constexpr Position find(Cell cell) const {
+        for (uint8_t y = 0; y < height; ++y) {
+            for (uint8_t x = 0; x < width; ++x) {
+                if (at(x, y) == cell) {
+                    return {x, y};
+                }
+            }
+        }
+        throw std::invalid_argument(std::format("{} is not present in the grid", char(cell)));
+    }
+
     constexpr bool exits(const Vector& v) const {
         return (v.pos.y() == 0 && v.dir == UP) ||
                (v.pos.x() == width - 1 && v.dir == RIGHT) ||
                (v.pos.y() == height - 1 && v.dir == DOWN) ||
                (v.pos.x() == 0 && v.dir == LEFT);
     }
-
-    constexpr const Cell& at(Position p) const { return m_data[p.y()][p.x()]; }
-    constexpr Cell& at(Position p) { return m_data[p.y()][p.x()]; }
-    constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }
-    constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[y][x]; }
 
     constexpr std::string toString(const State& state) const {
         const uint8_t lineWidth = width + 1;
