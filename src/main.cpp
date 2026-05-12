@@ -46,6 +46,27 @@ void writeSolutionFile(
     file << std::format("Solution: {}", solution.empty() ? "No solution found" : solution) << std::endl;
 }
 
+void printStateStats(const Grid& grid, const State& state) {
+    struct Stats {
+        size_t count = 0;
+        std::string text;
+    };
+    Stats used{};
+    Stats unused{};
+    for (uint8_t i = 0; i < grid.objectCount; ++i) {
+        Stats& stats = (state.objectPositions[i] == INVALID_POS) ? unused : used;
+        if (stats.count > 0) {
+            stats.text += ", ";
+        }
+        stats.text += char(state.objects[i]);
+        ++stats.count;
+    }
+    std::cout << used.count << " used blocks: [" << used.text << ']' << std::endl;
+    if (unused.count > 0) {
+        std::cout << unused.count << " unused blocks: [" << unused.text << ']' << std::endl;
+    }
+}
+
 bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
     size_t level = std::stoll(levelStr);
     const std::filesystem::path levelPath = repoPath / "levels" / std::format("level{}.txt", level);
@@ -55,18 +76,24 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
 
     if (findGoals) {
         const auto startTime = std::chrono::steady_clock::now();
-        const auto endStates = findEndStates(grid, startList, state, 0);
+        const auto endList = findEndStates(grid, startList, state);
         const auto runtime = std::chrono::steady_clock::now() - startTime;
         std::cout << "Ran in " << runtime << std::endl;
-        if (endStates.empty()) {
-            std::cout << "No end states found" << std::endl;
+        std::cout << "\nStart state:" << std::endl;
+        std::cout << grid.toString(state) << std::endl;
+        for (const auto [index, _] : startList) {
+            const auto& endStates = endList.at(index);
+            std::cout << "Found " << endStates.size() << " end states for lever " << int(index) << std::endl;
+            for (const auto& endState : endStates) {
+                std::cout << grid.toString(endState);
+                printStateStats(grid, endState);
+                std::cout << std::endl;
+            }
+        }
+        if (endList.size() != startList.size()) {
+            std::cout << "Could not find an end state for every lever" << std::endl;
             return false;
         }
-        std::cout << "Found " << endStates.size() << " end states" << std::endl;
-        for (const auto& endState : endStates) {
-            std::cout << '\n' << grid.toString(endState);
-        }
-        std::cout.flush();
         return true;
     }
     else {

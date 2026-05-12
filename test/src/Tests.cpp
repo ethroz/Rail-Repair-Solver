@@ -218,7 +218,10 @@ TEST(FindEndStates_Level1) {
     const auto [grid, state] = stateFromString(level);
     const auto startList = createStartList(grid);
 
-    const auto endStates = findEndStates(grid, startList, state, 0);
+    const auto endList = findEndStates(grid, startList, state);
+    ASSERT_EQ(1u, endList.size());
+    ASSERT_TRUE(endList.has(0));
+    const auto& endStates = endList.at(0);
     ASSERT_EQ(1u, endStates.size());
     EXPECT_EQ((Position{3,3}), endStates[0].player);
     ASSERT_EQ(2u, grid.objectCount);
@@ -242,7 +245,10 @@ TEST(FindEndStates_Level2) {
     const auto [grid, state] = stateFromString(level);
     const auto startList = createStartList(grid);
 
-    const auto endStates = findEndStates(grid, startList, state, 0);
+    const auto endList = findEndStates(grid, startList, state);
+    ASSERT_EQ(1u, endList.size());
+    ASSERT_TRUE(endList.has(0));
+    const auto& endStates = endList.at(0);
     ASSERT_EQ(4u, endStates.size());
     std::unordered_set<Position> expectedPositions{
         Position{3, 2},

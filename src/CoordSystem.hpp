@@ -89,13 +89,13 @@ struct Position {
     constexpr Position() = default;
     constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_y << 4) | (_x & 0xF)) { assert(_x <= 0XF && _y <= 0XF); }
     
-    [[nodiscard]] friend inline constexpr Position operator+(Position a, Position b) { return Position(a.x() + b.x(), a.y() + b.y()); }
+    [[nodiscard]] friend constexpr Position operator+(Position a, Position b) { return Position(a.x() + b.x(), a.y() + b.y()); }
     constexpr Position& operator+=(Position o) {
         Position p = *this + o;
         m_bits = p.m_bits;
         return *this;
     }
-    [[nodiscard]] friend inline constexpr Position operator+(Position p, Direction d) {
+    [[nodiscard]] friend constexpr Position operator+(Position p, Direction d) {
         switch(d) {
         case RIGHT: return Position(p.x() + 1, p.y()    );
         case DOWN:  return Position(p.x(),     p.y() + 1);
@@ -109,7 +109,7 @@ struct Position {
         m_bits = p.m_bits;
         return *this;
     }
-    [[nodiscard]] friend inline constexpr Position operator-(Position p, Direction d) {
+    [[nodiscard]] friend constexpr Position operator-(Position p, Direction d) {
         switch(d) {
         case RIGHT: return Position(p.x() - 1, p.y()    );
         case DOWN:  return Position(p.x(),     p.y() - 1);
@@ -140,8 +140,8 @@ struct Position {
         }
     }
 
-    [[nodiscard]] friend inline constexpr bool operator==(Position a, Position b) { return a.m_bits == b.m_bits; }
-    [[nodiscard]] friend inline constexpr bool operator!=(Position a, Position b) { return a.m_bits != b.m_bits; }
+    [[nodiscard]] friend constexpr bool operator==(const Position& a, const Position& b) { return a.m_bits == b.m_bits; }
+    [[nodiscard]] friend constexpr bool operator!=(const Position& a, const Position& b) { return a.m_bits != b.m_bits; }
     
     constexpr uint8_t x() const { return m_bits & 0xF; }
     constexpr uint8_t y() const { return m_bits >> 4; }
@@ -164,6 +164,8 @@ struct Position {
 private:
     uint8_t m_bits = 0;
 };
+
+static constexpr Position INVALID_POS = {X_MAX, Y_MAX};
 
 struct Vector {
     Position pos{};

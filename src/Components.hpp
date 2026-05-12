@@ -168,7 +168,8 @@ public:
 
         return encoding;
     }
-    friend constexpr bool operator<(const State& a, const State& b) { return a.rank < b.rank; }
+
+    [[nodiscard]] friend constexpr bool operator<(const State& a, const State& b) { return a.rank < b.rank; }
 };
 
 struct DeadState {

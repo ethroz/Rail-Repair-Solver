@@ -157,28 +157,97 @@ std::pair<Grid, State> stateFromString(std::string_view board) {
     return { grid, state };
 }
 
-struct StartList {
+template<typename T, typename EmptyFn>
+struct LeverList {
     constexpr size_t size() const { return m_size; }
+    constexpr bool empty() const { return m_size == 0; }
 
-    constexpr const Vector& at(uint8_t index) const {
-        if (m_data.at(index).dir == NONE) {
+    constexpr bool has(uint8_t index) const {
+        return index < MAX_LEVERS && !m_emptyFn(m_data.at(index));
+    }
+    
+    constexpr const T& at(uint8_t index) const {
+        if (!has(index)) {
             throw std::invalid_argument(std::format("Invalid railroad index: {}", index));
         }
         return m_data[index];
     }
 
-    constexpr void insert(uint8_t index, Vector&& vec) {
-        if (m_data.at(index).dir != NONE) {
+    constexpr void insert(uint8_t index, T&& value) {
+        if (has(index)) {
             throw std::invalid_argument("Cannot have two starting railroads with the same index");
         }
-        m_data[index] = std::move(vec);
-        m_size++;
+        if (m_emptyFn(value)) {
+            throw std::invalid_argument("Cannot insert an empty value");
+        }
+        m_data[index] = std::move(value);
+        ++m_size;
     }
 
+    struct pair_iterator {
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::pair<uint8_t, T>;
+        using reference = value_type;
+        using pointer = void;
+        using const_reference = const reference;
+        using const_pointer = const pointer;
+
+        constexpr pair_iterator(const LeverList& owner, uint8_t index) :
+            m_owner(owner),
+            m_index(index)
+        {
+            findNext();
+        }
+
+        constexpr reference operator*() const { return {m_index, m_owner.at(m_index)}; }
+
+        constexpr pair_iterator& operator++() {
+            m_index = std::min<uint8_t>(MAX_LEVERS, m_index + 1);
+            findNext();
+            return *this;
+        }
+        constexpr pair_iterator operator++(int) {
+            pair_iterator temp = *this;
+            ++(*this);
+            return temp;
+        }
+
+        constexpr friend bool operator==(const pair_iterator& a, const pair_iterator& b) {
+            assert(&a.m_owner == &b.m_owner);
+            return a.m_index == b.m_index;
+        }
+
+        constexpr friend bool operator!=(const pair_iterator& a, const pair_iterator& b) {
+            assert(&a.m_owner == &b.m_owner);
+            return a.m_index != b.m_index;
+        }
+
+    private:
+        constexpr void findNext() {
+            while (m_index < MAX_LEVERS && !m_owner.has(m_index)) {
+                ++m_index;
+            }
+        }
+
+        const LeverList& m_owner;
+        uint8_t m_index;
+    };
+
+    constexpr pair_iterator begin() const { return pair_iterator(*this, 0); }
+    constexpr pair_iterator end() const { return pair_iterator(*this, MAX_LEVERS); }
+
 private:
-    std::array<Vector, MAX_LEVERS> m_data = {};
+    std::array<T, MAX_LEVERS> m_data = {};
     size_t m_size = 0;
+    EmptyFn m_emptyFn{};
 };
+
+struct IsZeroVector {
+    constexpr bool operator()(const Vector& v) const {
+        return v.dir == NONE;
+    }
+};
+using StartList = LeverList<Vector, IsZeroVector>;
 
 StartList createStartList(const Grid& grid) {
     StartList list;
@@ -202,7 +271,7 @@ StartList createStartList(const Grid& grid) {
                 default: throw std::invalid_argument("Cannot have a starting railroad on a corner");
                 }
 
-                list.insert(cell.index(), {{x, y}, dir});
+                list.insert(cell.index(), Vector{{x, y}, dir});
             }
         }
     }
@@ -210,71 +279,84 @@ StartList createStartList(const Grid& grid) {
     return list;
 }
 
-std::vector<State> findEndStates(
+struct IsEmptyList {
+    constexpr bool operator()(const std::vector<State>& v) const {
+        return v.empty();
+    }
+};
+using EndList = LeverList<std::vector<State>, IsEmptyList>;
+
+EndList findEndStates(
     const Grid& grid,
     const StartList& startList,
-    const State& startState,
-    uint8_t index
+    const State& startState
 ) {
-    std::vector<State> endStates;
+    EndList endList;
     State state = startState;
+    for (uint8_t i = 0; i < grid.objectCount; ++i) {
+        state.objectPositions[i] = INVALID_POS;
+    }
+    
     std::array<bool, MAX_OBJECTS> flagBuffer{};
     std::span<bool> used = std::span(flagBuffer).subspan(0, grid.objectCount);
-    Position leverPos = grid.find(CELL(IMMOVABLE | LEVER | index));
     
-    for (uint8_t i = 0; i < grid.objectCount; ++i) {
-        state.objectPositions[i] = {X_MAX, Y_MAX};
-    }
-
-    [&](this auto&& self, Vector v) -> void {
-        while (true) {
-            v.pos += v.dir;
-            Cell cell = grid.at(state, v.pos).cell;
-            if (!cell.isTrack()) {
-                for (size_t i = 0; i < used.size(); ++i) {
-                    if (used[i]) {
-                        continue;
-                    }
-                    Cell object = state.objects[i];
-                    assert(object.isTrack());
-                    Direction newDir = object.trackType().ride(v.dir);
-                    if (newDir != NONE) {
-                        std::swap(state.objectPositions[i], v.pos);
-                        used[i] = true;
-                        self({state.objectPositions[i], newDir});
-                        used[i] = false;
-                        std::swap(state.objectPositions[i], v.pos);
-                    }
-                }
-                return;
-            }
-            else {
-                if (cell.isStart()) {
-                    return;
-                }
-
-                v.dir = cell.trackType().ride(v.dir);
-                if (v.dir == NONE) {
-                    return;
-                }
-
-                if (grid.exits(v)) {
-                    for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
-                        const Direction dir = DIRECTION(dirValue);
-                        Position pos = leverPos + dir;
-                        if (grid.at(state, pos).cell.isEmpty()) {
-                            std::swap(state.player, pos);
-                            endStates.push_back(state);
-                            std::swap(state.player, pos);
+    for (const auto [index, startVec] : startList) {
+        std::vector<State> endStates;
+        Position leverPos = grid.find(CELL(IMMOVABLE | LEVER | index));
+        [&](this auto&& self, Vector v) -> void {
+            while (true) {
+                v.pos += v.dir;
+                Cell cell = grid.at(state, v.pos).cell;
+                if (!cell.isTrack()) {
+                    for (size_t i = 0; i < used.size(); ++i) {
+                        if (used[i]) {
+                            continue;
+                        }
+                        Cell object = state.objects[i];
+                        assert(object.isTrack());
+                        Direction newDir = object.trackType().ride(v.dir);
+                        if (newDir != NONE) {
+                            std::swap(state.objectPositions[i], v.pos);
+                            used[i] = true;
+                            self({state.objectPositions[i], newDir});
+                            used[i] = false;
+                            std::swap(state.objectPositions[i], v.pos);
                         }
                     }
                     return;
                 }
-            }
-        }
-    }(startList.at(index));
+                else {
+                    if (cell.isStart()) {
+                        return;
+                    }
 
-    return endStates;
+                    v.dir = cell.trackType().ride(v.dir);
+                    if (v.dir == NONE) {
+                        return;
+                    }
+
+                    if (grid.exits(v)) {
+                        for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
+                            const Direction dir = DIRECTION(dirValue);
+                            Position pos = leverPos + dir;
+                            if (grid.at(state, pos).cell.isEmpty()) {
+                                std::swap(state.player, pos);
+                                endStates.push_back(state);
+                                std::swap(state.player, pos);
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+        }(startVec);
+
+        if (!endStates.empty()) {
+            endList.insert(index, std::move(endStates));
+        }
+    }
+
+    return endList;
 }
 
 bool simulateTrain(
