@@ -24,11 +24,11 @@ private:
     std::string m_msg;
 };
 
-struct TestFixture;
+class TestFixture;
 
 static std::vector<TestFixture*> tests;
 
-struct TestFixture {
+class TestFixture {
 public:
     TestFixture(std::string_view name, std::string file) :
         m_name{name},
@@ -100,7 +100,7 @@ struct ColorScope {
 
 // Defines
 
-#define TEST(x) struct Fixture_##x : public TestFixture { \
+#define TEST(x) class Fixture_##x : public TestFixture { \
 public: Fixture_##x() : TestFixture(#x, std::format("{}:{}", __FILE__, __LINE__)) {} \
 void runImpl() override; \
 }; \

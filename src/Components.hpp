@@ -219,7 +219,7 @@ static_assert(std::is_default_constructible_v<RankedDeadState>);
 static_assert(std::constructible_from<RankedDeadState, State>);
 static_assert(std::constructible_from<DeadState, RankedDeadState>);
 
-struct Grid {
+class Grid {
 public:
     struct LookupResult {
         Cell cell;
@@ -298,7 +298,8 @@ private:
 };
 
 template<typename T, typename EmptyFn>
-struct LeverList {
+class LeverList {
+public:
     constexpr size_t size() const { return m_size; }
     constexpr bool empty() const { return m_size == 0; }
 

@@ -24,7 +24,6 @@ enum DIRECTION : uint8_t {
 };
 
 struct Direction {
-public:
     constexpr Direction(const DIRECTION& d = NONE) : m_dir{d} {}
 
     [[nodiscard]] constexpr explicit operator char() const {
@@ -54,7 +53,6 @@ enum TRACKTYPE : uint8_t {
 };
 
 struct TrackType {
-public:
     constexpr TrackType(const TRACKTYPE& d) : m_type{d} {}
 
     [[nodiscard]] constexpr Direction ride(Direction inDir) const {
@@ -85,7 +83,8 @@ private:
     TRACKTYPE m_type;
 };
 
-struct Position {
+class Position {
+public:
     constexpr Position() = default;
     constexpr Position(uint8_t _x, uint8_t _y) : m_bits((_y << 4) | (_x & 0xF)) { assert(_x <= 0XF && _y <= 0XF); }
     
