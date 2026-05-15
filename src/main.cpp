@@ -46,25 +46,40 @@ void writeSolutionFile(
     file << std::format("Solution: {}", solution.empty() ? "No solution found" : solution) << std::endl;
 }
 
-void printStateStats(const Grid& grid, const State& state) {
-    struct Stats {
-        size_t count = 0;
-        std::string text;
-    };
-    Stats used{};
-    Stats unused{};
+void printBlocks(const Grid& grid, const State& state) {
+    std::string text;
     for (uint8_t i = 0; i < grid.objectCount; ++i) {
-        Stats& stats = (state.objectPositions[i] == INVALID_POS) ? unused : used;
-        if (stats.count > 0) {
-            stats.text += ", ";
+        if (!text.empty()) {
+            text += " ";
         }
-        stats.text += char(state.objects[i]);
-        ++stats.count;
+        text += char(state.objects[i]);
     }
-    std::cout << used.count << " used blocks: [" << used.text << ']' << std::endl;
-    if (unused.count > 0) {
-        std::cout << unused.count << " unused blocks: [" << unused.text << ']' << std::endl;
+    std::cout << "blocks: [" << text << ']' << std::endl;
+}
+
+void printBlockUsage(const Grid& grid, const State& state) {
+    std::string used;
+    std::string unused;
+    for (uint8_t i = 0; i < grid.objectCount; ++i) {
+        if (!used.empty()) {
+            used += ' ';
+            unused += ' ';
+        }
+        bool validBlock = state.objectPositions[i] != INVALID_POS;
+        std::string& target = validBlock ? used : unused;
+        std::string& other = !validBlock ? used : unused;
+        char block = char(state.objects[i]);
+        if (block == ' ') {
+            target += "' '";
+            other += "   ";
+        }
+        else {
+            target += block;
+            other += ' ';
+        }
     }
+    std::cout << "used blocks:   [" << used   << ']' << std::endl;
+    std::cout << "unused blocks: [" << unused << ']' << std::endl;
 }
 
 bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
@@ -80,13 +95,15 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
         const auto runtime = std::chrono::steady_clock::now() - startTime;
         std::cout << "Ran in " << runtime << std::endl;
         std::cout << "\nStart state:" << std::endl;
-        std::cout << grid.toString(state) << std::endl;
+        std::cout << grid.toString(state);
+        printBlocks(grid, state);
+        std::cout << std::endl;
         for (const auto [index, _] : startList) {
             const auto& endStates = endList.at(index);
             std::cout << "Found " << endStates.size() << " end states for lever " << int(index + 1) << std::endl;
             for (const auto& endState : endStates) {
                 std::cout << grid.toString(endState);
-                printStateStats(grid, endState);
+                printBlockUsage(grid, endState);
                 std::cout << std::endl;
             }
         }
