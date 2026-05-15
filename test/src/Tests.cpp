@@ -273,6 +273,35 @@ TEST(FindEndStates_Level2) {
     EXPECT_EQ((Position{5,4}), endStates[2].objectPositions[2]);
 }
 
+TEST(FindEndStates_Level18) {
+    constexpr std::string_view level =
+        "###1###\n"
+        "HH   ##\n"
+        "#1   ##\n"
+        "###*###\n"
+        "#     #\n"
+        "# uhv #\n"
+        "## @ ##\n"
+        "#######\n";
+
+    const auto [grid, state] = stateFromString(level);
+    const auto startList = createStartList(grid);
+
+    const auto endList = findEndStates(grid, startList, state);
+    ASSERT_EQ(1u, endList.size());
+    ASSERT_TRUE(endList.has(0));
+    const auto& endStates = endList.at(0);
+    ASSERT_EQ(1u, endStates.size());
+    EXPECT_EQ((Position{2,2}), endStates[0].player);
+    ASSERT_EQ(3u, grid.objectCount);
+    EXPECT_EQ(MOVABLE_NW,      endStates[0].objects[0]);
+    EXPECT_EQ((Position{3,1}), endStates[0].objectPositions[0]);
+    EXPECT_EQ(MOVABLE_H,       endStates[0].objects[1]);
+    EXPECT_EQ((Position{2,1}), endStates[0].objectPositions[1]);
+    EXPECT_EQ(FLOOR,           endStates[0].objects[2]);
+    EXPECT_EQ((Position{3,3}), endStates[0].objectPositions[2]);
+}
+
 TEST(SimulateTrain) {
     constexpr std::string_view level =
         "########\n"

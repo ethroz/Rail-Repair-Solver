@@ -141,6 +141,7 @@ public:
 
     [[nodiscard]] friend constexpr bool operator==(const Position& a, const Position& b) { return a.m_bits == b.m_bits; }
     [[nodiscard]] friend constexpr bool operator!=(const Position& a, const Position& b) { return a.m_bits != b.m_bits; }
+    [[nodiscard]] friend constexpr bool operator<(const Position& a, const Position& b) { return a.m_bits < b.m_bits; }
     
     constexpr uint8_t x() const { return m_bits & 0xF; }
     constexpr uint8_t y() const { return m_bits >> 4; }

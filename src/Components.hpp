@@ -219,6 +219,17 @@ static_assert(std::is_default_constructible_v<RankedDeadState>);
 static_assert(std::constructible_from<RankedDeadState, State>);
 static_assert(std::constructible_from<DeadState, RankedDeadState>);
 
+struct RankedPosition {
+    Position pos;
+    uint8_t rank;
+
+    [[nodiscard]] constexpr operator Position() const { return pos; }
+
+    [[nodiscard]] friend constexpr bool operator<(const RankedPosition& a, const RankedPosition& b) { return a.rank < b.rank; }
+};
+
+static_assert(std::constructible_from<Position, RankedPosition>);
+
 class Grid {
 public:
     struct LookupResult {
@@ -267,7 +278,7 @@ public:
                 }
             }
         }
-        throw std::invalid_argument(std::format("{} is not present in the grid", char(cell)));
+        return INVALID_POS;
     }
 
     constexpr bool exits(const Vector& v) const {

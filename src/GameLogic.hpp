@@ -12,6 +12,7 @@
 #include <limits>
 #include <map>
 #include <ranges>
+#include <set>
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/inlined_vector.h>
@@ -187,6 +188,57 @@ StartList createStartList(const Grid& grid) {
     return list;
 }
 
+using PathQueue = StablePriorityQueue<RankedPosition, Position, uint32_t, false>;
+
+std::vector<Position> findPath(PathQueue& queue, const Grid& grid, Position from, Position to) {
+    if (from == to) {
+        return {from};
+    }
+    
+    std::array<std::array<bool, 16>, 16> visited = {};
+    queue.reset();
+    queue.push(RankedPosition{from, 0});
+    visited[from.y()][from.x()] = true;
+    
+    while (!queue.empty()) {
+        const auto& front = queue.peek();
+        
+        for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
+            const Direction dir = DIRECTION(dirValue);
+            Position pos = front.pos + dir;
+            bool& used = visited[pos.y()][pos.x()];
+            if (used) {
+                continue;
+            }
+            used = true;
+
+            if (pos == to) {
+                std::vector<Position> path;
+                path.push_back(to);
+                for (const auto& pos : queue) {
+                    path.push_back(pos);
+                }
+                std::reverse(path.begin(), path.end());
+                return path;
+            }
+
+            const Cell& cell = grid.at(pos);
+            if (cell == FLOOR || cell == HOLE) {
+                uint8_t rank = front.rank + 1;
+                if (cell == HOLE) {
+                    constexpr uint8_t HOLE_OFFSET = BASE;
+                    rank += HOLE_OFFSET;
+                }
+                queue.push(RankedPosition{std::move(pos), std::move(rank)});
+            }
+        }
+
+        queue.removeFront();
+    }
+
+    return {};
+}
+
 EndList findEndStates(
     const Grid& grid,
     const StartList& startList,
@@ -197,36 +249,24 @@ EndList findEndStates(
     for (uint8_t i = 0; i < grid.objectCount; ++i) {
         state.objectPositions[i] = INVALID_POS;
     }
+    state.player = INVALID_POS;
     
     std::array<bool, MAX_OBJECTS> flagBuffer{};
     std::span<bool> used = std::span(flagBuffer).subspan(0, grid.objectCount);
     
+    PathQueue queue(BASE, BASE);
+
     for (const auto [index, startVec] : startList) {
         std::vector<State> endStates;
+        std::vector<Position> holes;
         Position leverPos = grid.find(CELL(IMMOVABLE | LEVER | index));
-        [&](this auto&& self, Vector v) -> void {
+        assert(leverPos != INVALID_POS);
+        [&](this auto&& self, size_t depth, Vector v) -> void {
             while (true) {
                 v.pos += v.dir;
                 Cell cell = grid.at(state, v.pos).cell;
-                if (!cell.isTrack()) {
-                    for (size_t i = 0; i < used.size(); ++i) {
-                        if (used[i]) {
-                            continue;
-                        }
-                        Cell object = state.objects[i];
-                        assert(object.isTrack());
-                        Direction newDir = object.trackType().ride(v.dir);
-                        if (newDir != NONE) {
-                            std::swap(state.objectPositions[i], v.pos);
-                            used[i] = true;
-                            self({state.objectPositions[i], newDir});
-                            used[i] = false;
-                            std::swap(state.objectPositions[i], v.pos);
-                        }
-                    }
-                    return;
-                }
-                else {
+
+                if (cell.isTrack()) {
                     if (cell.isStart()) {
                         return;
                     }
@@ -237,20 +277,79 @@ EndList findEndStates(
                     }
 
                     if (grid.exits(v)) {
-                        for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
-                            const Direction dir = DIRECTION(dirValue);
-                            Position pos = leverPos + dir;
-                            if (grid.at(state, pos).cell.isEmpty()) {
-                                std::swap(state.player, pos);
-                                endStates.push_back(state);
-                                std::swap(state.player, pos);
-                            }
+                        if (holes.size() + depth <= used.size()) {
+                            size_t holesRemaining = holes.size();
+                            [&](this auto&& self) -> void {
+                                if (holesRemaining == 0) {
+                                    for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
+                                        const Direction dir = DIRECTION(dirValue);
+                                        Position pos = leverPos + dir;
+
+                                        if (grid.at(state, pos).cell.isEmpty()) {
+                                            state.player = pos;
+                                            endStates.push_back(state);
+                                            state.player = INVALID_POS;
+                                        }
+                                    }
+                                    return;
+                                }
+                                for (size_t i = 0; i < used.size(); ++i) {
+                                    if (used[i]) {
+                                        continue;
+                                    }
+
+                                    --holesRemaining;
+                                    state.objectPositions[i] = holes[holesRemaining];
+                                    Cell cell = std::exchange(state.objects[i], FLOOR);
+                                    used[i] = true;
+                                    self();
+                                    used[i] = false;
+                                    state.objects[i] = cell;
+                                    state.objectPositions[i] = INVALID_POS;
+                                    ++holesRemaining;
+                                }
+                            }();
                         }
                         return;
                     }
                 }
+                else {
+                    if (cell == FLOOR || cell == HOLE) {
+                        for (size_t i = 0; i < used.size(); ++i) {
+                            if (used[i]) {
+                                continue;
+                            }
+
+                            Cell object = state.objects[i];
+                            assert(object.isTrack());
+                            Direction newDir = object.trackType().ride(v.dir);
+                            if (newDir != NONE) {
+                                std::vector<Position> path = findPath(queue, grid, startState.objectPositions[i], v.pos);
+
+                                if (!path.empty()) {
+                                    size_t holesBefore = holes.size();
+                                    for (const auto& pos : path) {
+                                        if (grid.at(pos) == HOLE &&
+                                            std::find(holes.begin(), holes.end(), pos) == holes.end()) {
+                                            holes.push_back(pos);
+                                        }
+                                    }
+
+                                    state.objectPositions[i] = v.pos;
+                                    used[i] = true;
+                                    self(depth + 1, {state.objectPositions[i], newDir});
+                                    used[i] = false;
+                                    state.objectPositions[i] = INVALID_POS;
+
+                                    holes.resize(holesBefore);
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
             }
-        }(startVec);
+        }(0, startVec);
 
         if (!endStates.empty()) {
             endList.insert(index, std::move(endStates));

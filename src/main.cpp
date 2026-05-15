@@ -83,17 +83,24 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
         std::cout << grid.toString(state) << std::endl;
         for (const auto [index, _] : startList) {
             const auto& endStates = endList.at(index);
-            std::cout << "Found " << endStates.size() << " end states for lever " << int(index) << std::endl;
+            std::cout << "Found " << endStates.size() << " end states for lever " << int(index + 1) << std::endl;
             for (const auto& endState : endStates) {
                 std::cout << grid.toString(endState);
                 printStateStats(grid, endState);
                 std::cout << std::endl;
             }
         }
-        if (endList.size() != startList.size()) {
-            std::cout << "Could not find an end state for every lever" << std::endl;
-            return false;
+        std::cout << "State count summary: {";
+        bool first = true;
+        for (const auto [index, _] : startList) {
+            const auto& endStates = endList.at(index);
+            if (!first) {
+                std::cout << ", ";
+            }
+            first = false;
+            std::cout << int(index + 1) << ": " << endStates.size();
         }
+        std::cout << "}\n" << std::endl;
         return true;
     }
     else {
