@@ -10,6 +10,7 @@
 #include <stdexcept>
 
 #include "GameLogic.hpp"
+#include "PathSearch.hpp"
 
 static std::atomic_bool done = false;
 

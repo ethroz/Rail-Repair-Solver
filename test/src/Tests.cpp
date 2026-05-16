@@ -14,6 +14,7 @@
 #include "FixedIndexedVector.hpp"
 #include "IndexedPriorityQueue.hpp"
 #include "IndexedVector.hpp"
+#include "PathSearch.hpp"
 #include "StableFixedQueue.hpp"
 #include "StablePriorityQueue.hpp"
 

@@ -393,17 +393,3 @@ private:
     size_t m_size = 0;
     EmptyFn m_emptyFn{};
 };
-
-struct IsZeroVector {
-    constexpr bool operator()(const Vector& v) const {
-        return v.dir == NONE;
-    }
-};
-using StartList = LeverList<Vector, IsZeroVector>;
-
-struct IsEmptyList {
-    constexpr bool operator()(const std::vector<State>& v) const {
-        return v.empty();
-    }
-};
-using EndList = LeverList<std::vector<State>, IsEmptyList>;
