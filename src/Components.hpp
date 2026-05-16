@@ -239,12 +239,12 @@ public:
 
     constexpr Grid() = default;
 
-    constexpr const Cell& at(Position p) const { return m_data[p.y()][p.x()]; }
-    constexpr Cell& at(Position p) { return m_data[p.y()][p.x()]; }
+    constexpr const Cell& at(const Position& p) const { return m_data[p.y()][p.x()]; }
+    constexpr Cell& at(const Position& p) { return m_data[p.y()][p.x()]; }
     constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }
     constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[y][x]; }
 
-    constexpr LookupResult at(const State& state, Position p) const {
+    constexpr LookupResult at(const State& state, const Position& p) const {
         uint8_t floorIndex = 0xFF;
 
         for (uint8_t i = 0; i < objectCount; ++i) {
@@ -270,7 +270,7 @@ public:
         return {at(p), 0xFF};
     }
 
-    constexpr Position find(Cell cell) const {
+    constexpr Position find(const Cell& cell) const {
         for (uint8_t y = 0; y < height; ++y) {
             for (uint8_t x = 0; x < width; ++x) {
                 if (at(x, y) == cell) {
@@ -338,7 +338,7 @@ public:
 
     struct pair_iterator {
         using iterator_category = std::forward_iterator_tag;
-        using value_type = std::pair<uint8_t, T>;
+        using value_type = std::pair<uint8_t, const T&>;
         using reference = value_type;
         using pointer = void;
         using const_reference = const reference;

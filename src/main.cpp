@@ -98,8 +98,7 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
         std::cout << grid.toString(state);
         printBlocks(grid, state);
         std::cout << std::endl;
-        for (const auto [index, _] : startList) {
-            const auto& endStates = endList.at(index);
+        for (const auto [index, endStates] : endList) {
             std::cout << "Found " << endStates.size() << " end states for lever " << int(index + 1) << std::endl;
             for (const auto& endState : endStates) {
                 std::cout << grid.toString(endState);
@@ -107,17 +106,30 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
                 std::cout << std::endl;
             }
         }
-        std::cout << "State count summary: {";
+        std::string summary = "Summary: {";
         bool first = true;
-        for (const auto [index, _] : startList) {
-            const auto& endStates = endList.at(index);
+        for (const auto [index, endStates] : endList) {
             if (!first) {
-                std::cout << ", ";
+                summary += ", ";
             }
             first = false;
-            std::cout << int(index + 1) << ": " << endStates.size();
+            summary += std::to_string(int(index + 1));
+            summary += ": ";
+            summary += std::to_string(endStates.size());
         }
-        std::cout << "}\n" << std::endl;
+        summary += "}\n";
+        std::cout << summary << std::endl;
+
+        if (saveResult) {
+            const std::filesystem::path endStatesDir = repoPath / "end_states";
+            std::filesystem::create_directories(endStatesDir);
+            std::ofstream file(endStatesDir / std::format("level{}.txt", level), std::ios::out | std::ios::trunc | std::ios::binary);
+            if (!file) {
+                throw std::runtime_error("Unable to create solution output file");
+            }
+            file << summary;
+        }
+
         return true;
     }
     else {
