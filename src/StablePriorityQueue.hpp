@@ -29,9 +29,9 @@ class StablePriorityQueue {
 private:
     static constexpr Index NO_INDEX = std::numeric_limits<Index>::max();
 public:
-    inline StablePriorityQueue(size_t capacity = 2) : StablePriorityQueue(capacity / 2, capacity / 2) {}
+    constexpr StablePriorityQueue(size_t capacity = 2) : StablePriorityQueue(capacity / 2, capacity / 2) {}
 
-    inline StablePriorityQueue(size_t aliveCap, size_t deadCap) :
+    constexpr StablePriorityQueue(size_t aliveCap, size_t deadCap) :
         m_dead(deadCap),
         m_alive(aliveCap)
     {}
