@@ -1,5 +1,12 @@
 #pragma once
 
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <ranges>
+#include <span>
+#include <utility>
 #include <vector>
 
 #include "Components.hpp"
@@ -7,6 +14,7 @@
 #include "FixedQueue.hpp"
 #include "FixedVector.hpp"
 #include "StablePriorityQueue.hpp"
+#include "State.hpp"
 
 using PathQueue = StablePriorityQueue<RankedPosition, Position, uint32_t, false>;
 static PathQueue pathQueue(BASE, BASE);

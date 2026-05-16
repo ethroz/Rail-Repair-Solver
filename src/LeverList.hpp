@@ -1,0 +1,96 @@
+#pragma once
+
+#include <array>
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <stdexcept>
+
+#include "Components.hpp"
+
+template<typename T, typename EmptyFn>
+class LeverList {
+public:
+    constexpr size_t size() const { return m_size; }
+    constexpr bool empty() const { return m_size == 0; }
+
+    constexpr bool has(uint8_t index) const {
+        return index < MAX_LEVERS && !m_emptyFn(m_data.at(index));
+    }
+    
+    constexpr const T& at(uint8_t index) const {
+        if (!has(index)) {
+            throw std::invalid_argument(std::format("Invalid railroad index: {}", index));
+        }
+        return m_data[index];
+    }
+
+    constexpr void insert(uint8_t index, T&& value) {
+        if (has(index)) {
+            throw std::invalid_argument("Cannot have two starting railroads with the same index");
+        }
+        if (m_emptyFn(value)) {
+            throw std::invalid_argument("Cannot insert an empty value");
+        }
+        m_data[index] = std::move(value);
+        ++m_size;
+    }
+
+    struct pair_iterator {
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::pair<uint8_t, const T&>;
+        using reference = value_type;
+        using pointer = void;
+        using const_reference = const reference;
+        using const_pointer = const pointer;
+
+        constexpr pair_iterator(const LeverList& owner, uint8_t index) :
+            m_owner(owner),
+            m_index(index)
+        {
+            findNext();
+        }
+
+        constexpr reference operator*() const { return {m_index, m_owner.at(m_index)}; }
+
+        constexpr pair_iterator& operator++() {
+            m_index = std::min<uint8_t>(MAX_LEVERS, m_index + 1);
+            findNext();
+            return *this;
+        }
+        constexpr pair_iterator operator++(int) {
+            pair_iterator temp = *this;
+            ++(*this);
+            return temp;
+        }
+
+        constexpr friend bool operator==(const pair_iterator& a, const pair_iterator& b) {
+            assert(&a.m_owner == &b.m_owner);
+            return a.m_index == b.m_index;
+        }
+
+        constexpr friend bool operator!=(const pair_iterator& a, const pair_iterator& b) {
+            assert(&a.m_owner == &b.m_owner);
+            return a.m_index != b.m_index;
+        }
+
+    private:
+        constexpr void findNext() {
+            while (m_index < MAX_LEVERS && !m_owner.has(m_index)) {
+                ++m_index;
+            }
+        }
+
+        const LeverList& m_owner;
+        uint8_t m_index;
+    };
+
+    constexpr pair_iterator begin() const { return pair_iterator(*this, 0); }
+    constexpr pair_iterator end() const { return pair_iterator(*this, MAX_LEVERS); }
+
+private:
+    std::array<T, MAX_LEVERS> m_data = {};
+    size_t m_size = 0;
+    EmptyFn m_emptyFn{};
+};

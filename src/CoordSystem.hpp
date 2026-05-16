@@ -42,47 +42,6 @@ private:
     DIRECTION m_dir;
 };
 
-enum TRACKTYPE : uint8_t {
-    NW = 0,
-    NE = 1,
-    SE = 2,
-    SW = 3,
-    H = 4,
-    V = 5,
-    NUM_TRACK = 6,
-};
-
-struct TrackType {
-    constexpr TrackType(const TRACKTYPE& d) : m_type{d} {}
-
-    [[nodiscard]] constexpr Direction ride(Direction inDir) const {
-        switch (m_type) {
-        case H:
-        case V:
-            return (inDir % 2 != m_type - H) ? inDir : NONE;
-        case NW:
-        case NE:
-        case SE:
-        case SW:
-            if (m_type == inDir - 1) {
-                return DIRECTION(((inDir + MAX_DIR - 2) % MAX_DIR) + 1);
-            }
-            else if ((m_type + 1) % MAX_DIR == inDir - 1) {
-                return DIRECTION((inDir % MAX_DIR) + 1);
-            }
-            else {
-                return NONE;
-            }
-        default: throw std::invalid_argument(std::format("Invalid track value: {}", std::to_underlying(m_type)));
-        }
-    }
-
-    [[nodiscard]] constexpr operator uint8_t() const { return uint8_t(m_type); }
-
-private:
-    TRACKTYPE m_type;
-};
-
 class Position {
 public:
     constexpr Position() = default;
