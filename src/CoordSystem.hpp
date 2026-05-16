@@ -98,6 +98,16 @@ public:
         }
     }
 
+    static constexpr uint8_t distance(const Position& from, const Position& to) {
+        const uint8_t fx = from.x();
+        const uint8_t fy = from.y();
+        const uint8_t tx = to.x();
+        const uint8_t ty = to.y();
+        const uint8_t dx = fx > tx ? fx - tx : tx - fx;
+        const uint8_t dy = fy > ty ? fy - ty : ty - fy;
+        return dx + dy;
+    }
+
     [[nodiscard]] friend constexpr bool operator==(const Position& a, const Position& b) { return a.m_bits == b.m_bits; }
     [[nodiscard]] friend constexpr bool operator!=(const Position& a, const Position& b) { return a.m_bits != b.m_bits; }
     [[nodiscard]] friend constexpr bool operator<(const Position& a, const Position& b) { return a.m_bits < b.m_bits; }

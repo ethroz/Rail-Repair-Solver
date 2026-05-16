@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
-#include <absl/container/inlined_vector.h>
 
 #include "Components.hpp"
 #include "CoordSystem.hpp"
@@ -27,8 +26,8 @@
 #include "FixedVector.hpp"
 #include "Grid.hpp"
 #include "LeverList.hpp"
-#include "StableFixedQueue.hpp"
-#include "StablePriorityQueue.hpp"
+#include "FixedChainQueue.hpp"
+#include "PriorityChainQueue.hpp"
 #include "State.hpp"
 
 using Stamp = size_t;
@@ -248,13 +247,13 @@ Direction getStepDirection(
     return stepDir;
 }
 
-using StateQueue = StablePriorityQueue<State, DeadState, uint32_t, true>;
+using StateQueue = PriorityChainQueue<State, DeadState, uint32_t, true>;
 constexpr size_t MAX_NEXT_STATES = MAX_OBJECTS * MAX_DIR + MAX_LEVERS;
 // Based on max number of elements we could possibly see in the stateQueue.
 constexpr size_t MAX_MOVE_QUEUE_SIZE = MAX_OBJECTS * 2;
 // Round up to the nearest power of two to convert modulo operators to and operators.
 constexpr size_t MOVE_QUEUE_SIZE = std::bit_ceil(MAX_MOVE_QUEUE_SIZE);
-using MoveQueue = StableFixedQueue<RankedDeadState, DeadState, State, MOVE_QUEUE_SIZE, BASE, MAX_NEXT_STATES, uint8_t>;
+using MoveQueue = FixedChainQueue<RankedDeadState, DeadState, State, MOVE_QUEUE_SIZE, BASE, MAX_NEXT_STATES, uint8_t>;
 
 std::vector<Direction> buildSolution(
     const Grid& grid,

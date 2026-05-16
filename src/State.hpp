@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 #include "Components.hpp"
@@ -13,6 +14,7 @@
 
 static constexpr uint8_t ENCODING_BYTES = 10;
 using StateEncoding = std::array<uint8_t, ENCODING_BYTES>;
+using PositionalEncoding = uint64_t;
 using Rank = uint16_t;
 
 struct State {
@@ -37,18 +39,27 @@ public:
         return std::popcount(leverBits);
     }
 
+    constexpr PositionalEncoding encodePos(uint8_t objectCount) const {
+        PositionalEncoding encoding = 0;
+        constexpr size_t ENC_BITS = sizeof(encoding) * 8;
+        constexpr size_t POS_BITS = std::bit_width(BASE - 1);
+        static_assert(MAX_OBJECTS * POS_BITS <= ENC_BITS);
+
+        PositionalEncoding multiplier = 1;
+        for (uint8_t i = 0; i < objectCount; ++i) {
+            encoding += PositionalEncoding(objectPositions[i].rank()) * multiplier;
+            multiplier *= BASE;
+        }
+
+        return encoding;
+    }
+
     constexpr StateEncoding encode(uint8_t objectCount) const {
         StateEncoding encoding{};
 
-        uint64_t positionalEncoding = 0;
+        PositionalEncoding positionalEncoding = encodePos(objectCount);
         constexpr size_t POS_ENC_BYTES = sizeof(positionalEncoding);
         static_assert(POS_ENC_BYTES <= ENCODING_BYTES);
-
-        uint64_t multiplier = 1;
-        for (uint8_t i = 0; i < objectCount; ++i) {
-            positionalEncoding += uint64_t(objectPositions[i].rank()) * multiplier;
-            multiplier *= BASE;
-        }
 
         constexpr auto POS_BITS = std::bit_width([](uint64_t base, int exp) constexpr {
             uint64_t result = 1;
@@ -79,6 +90,12 @@ public:
         return encoding;
     }
 
+    [[nodiscard]] friend constexpr bool operator==(const State& a, const State& b) {
+        return a.player == b.player
+            && a.objectPositions == b.objectPositions
+            && a.objects == b.objects
+            && a.leverBits == b.leverBits;
+    }
     [[nodiscard]] friend constexpr bool operator<(const State& a, const State& b) { return a.rank < b.rank; }
 };
 
@@ -129,13 +146,34 @@ static_assert(std::is_default_constructible_v<RankedDeadState>);
 static_assert(std::constructible_from<RankedDeadState, State>);
 static_assert(std::constructible_from<DeadState, RankedDeadState>);
 
+using HoleMask = uint64_t;
+static_assert(BASE <= std::numeric_limits<HoleMask>::digits);
+
 struct RankedPosition {
+    HoleMask mask;
     Position pos;
-    uint8_t rank;
 
     [[nodiscard]] constexpr operator Position() const { return pos; }
 
-    [[nodiscard]] friend constexpr bool operator<(const RankedPosition& a, const RankedPosition& b) { return a.rank < b.rank; }
+    [[nodiscard]] constexpr int rank() const {
+        return std::popcount(mask);
+    }
+
+    [[nodiscard]] friend constexpr bool operator==(const RankedPosition& a, const RankedPosition& b) {
+        return a.pos == b.pos && a.mask == b.mask;
+    }
+    [[nodiscard]] friend constexpr bool operator<(const RankedPosition& a, const RankedPosition& b) {
+        return a.rank() < b.rank();
+    }
 };
 
 static_assert(std::constructible_from<Position, RankedPosition>);
+
+template <>
+struct std::hash<RankedPosition> {
+    std::size_t operator()(const RankedPosition& p) const noexcept {
+        const std::size_t h1 = std::hash<std::uint64_t>{}(p.mask);
+        const std::size_t h2 = std::hash<std::uint8_t>{}(p.pos.value());
+        return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
+    }
+};

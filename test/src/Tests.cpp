@@ -15,8 +15,8 @@
 #include "IndexedPriorityQueue.hpp"
 #include "IndexedVector.hpp"
 #include "PathSearch.hpp"
-#include "StableFixedQueue.hpp"
-#include "StablePriorityQueue.hpp"
+#include "FixedChainQueue.hpp"
+#include "PriorityChainQueue.hpp"
 
 
 template <>
