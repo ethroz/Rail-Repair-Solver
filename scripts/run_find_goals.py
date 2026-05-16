@@ -35,6 +35,11 @@ def main() -> int:
         action="store_true",
         help="Allow the solver to save its solution to its respective file."
     )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Print more stuff"
+    )
     args = parser.parse_args()
     
     solver_exe = get_binary(args.build_type)
@@ -45,11 +50,14 @@ def main() -> int:
         print(f"No level files found in {LEVELS_DIR}")
         return 1
     
+    levels = sorted([int(level_file.stem.replace("level", "")) for level_file in level_files])
+    
     elapsed_time = 0
     
-    for level_file in level_files:
-        level_num = int(level_file.stem.replace("level", ""))
-        command = [str(solver_exe), str(level_num), "--find-goals"]
+    for level in levels:
+        if args.verbose:
+            print(level)
+        command = [str(solver_exe), str(level), "--find-goals"]
         if not args.save:
             command.append("--no-save")
         
