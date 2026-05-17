@@ -1,1 +1,3 @@
-Summary: {1: 2, 2: 2}
+Before connections: {1: 2, 2: 2}
+After connections:  {1: 2, 2: 2}
+Connections: {1: {2: 0}, 2: {1: 4}}
