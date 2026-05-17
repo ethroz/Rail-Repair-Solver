@@ -17,6 +17,7 @@
 #include "CoordSystem.hpp"
 #include "FixedQueue.hpp"
 #include "FixedVector.hpp"
+#include "LeverList.hpp"
 #include "PriorityChainQueue.hpp"
 #include "State.hpp"
 
