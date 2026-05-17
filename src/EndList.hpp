@@ -17,11 +17,11 @@
 #include "State.hpp"
 
 struct IsEmptyList {
-    constexpr bool operator()(const std::vector<State>& v) const {
+    constexpr bool operator()(const std::vector<GoalState>& v) const {
         return v.empty();
     }
 };
-class EndList : public LeverList<std::vector<State>, IsEmptyList> {
+class EndList : public LeverList<std::vector<GoalState>, IsEmptyList> {
 public:
     constexpr EndList() noexcept = default;
     constexpr ~EndList() noexcept = default;
@@ -132,7 +132,7 @@ private:
         }
     }
 
-    constexpr bool canTransformTo(const Grid& grid, const State& from, const State& to) const {
+    constexpr bool canTransformTo(const Grid& grid, const GoalState& from, const GoalState& to) const {
         for (uint8_t i = 0; i < grid.objectCount; ++i) {
             const Cell& fromCell = from.objects[i];
             const Position& fromPos = from.objectPositions[i];

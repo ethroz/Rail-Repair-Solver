@@ -267,8 +267,8 @@ std::vector<Direction> search(
     const auto heuristic = [&](const State& state) -> Rank {
         return state.moves + std::ranges::min(
             endList.at(0) |
-            std::views::transform([&](const State& end){
-                return State::distance(state, end, grid.objectCount);
+            std::views::transform([&](const GoalState& end) {
+                return end.distance(state, grid.objectCount);
             }));
     };
 

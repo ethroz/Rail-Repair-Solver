@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <ranges>
 #include <type_traits>
 
 #include "Components.hpp"
@@ -17,6 +18,11 @@ using StateEncoding = std::array<uint8_t, ENCODING_BYTES>;
 using PositionalEncoding = uint64_t;
 using Rank = uint16_t;
 
+struct LookupResult {
+    Cell cell;
+    uint8_t index;
+};
+
 struct State {
 public:
     std::array<Cell, MAX_OBJECTS> objects = {};
@@ -25,6 +31,32 @@ public:
     Rank rank = 0;
     Position player = {};
     uint8_t leverBits = 0;
+
+    constexpr LookupResult at(const Position& p, uint8_t objectCount) const {
+        uint8_t floorIndex = 0xFF;
+
+        if (player == p) {
+            return {PLAYER, 0xFF};
+        }
+
+        for (uint8_t i = 0; i < objectCount; ++i) {
+            if (objectPositions[i] != p) {
+                continue;
+            }
+
+            if (objects[i] != FLOOR) {
+                return {objects[i], i};
+            }
+
+            floorIndex = i;
+        }
+
+        if (floorIndex != 0xFF) {
+            return {FLOOR, floorIndex};
+        }
+
+        return {NOTHING, 0xFF};
+    }
 
     constexpr bool leverToggled(uint8_t index) const {
         assert(index < MAX_LEVERS);
@@ -38,23 +70,6 @@ public:
 
     constexpr size_t numToggledLevers() const {
         return std::popcount(leverBits);
-    }
-
-    static constexpr Rank distance(const State& from, const State& to, uint8_t objectCount) {
-        Rank dist = 0;
-        for (uint8_t i = 0; i < objectCount; ++i) {
-            const Position& fromPos = from.objectPositions[i];
-            const Position& toPos = to.objectPositions[i];
-            if (toPos == INVALID_POS) {
-                continue;
-            }
-            dist += Position::distance(fromPos, toPos);
-        }
-        if (dist == 0) {
-            dist += Position::distance(from.player, to.player);
-        }
-
-        return dist;
     }
 
     constexpr PositionalEncoding encodePos(uint8_t objectCount) const {
@@ -108,12 +123,6 @@ public:
         return encoding;
     }
 
-    [[nodiscard]] friend constexpr bool operator==(const State& a, const State& b) {
-        return a.player == b.player
-            && a.objectPositions == b.objectPositions
-            && a.objects == b.objects
-            && a.leverBits == b.leverBits;
-    }
     [[nodiscard]] friend constexpr bool operator<(const State& a, const State& b) { return a.rank < b.rank; }
 };
 
@@ -163,6 +172,79 @@ struct RankedDeadState : DeadState {
 static_assert(std::is_default_constructible_v<RankedDeadState>);
 static_assert(std::constructible_from<RankedDeadState, State>);
 static_assert(std::constructible_from<DeadState, RankedDeadState>);
+
+struct GoalState {
+public:
+    std::array<Cell, MAX_OBJECTS> objects = {};
+    std::array<Position, MAX_OBJECTS> objectPositions = {};
+    std::array<Position, 4> playerPositions = {};
+
+    constexpr GoalState() noexcept {
+        objectPositions.fill(INVALID_POS);
+        playerPositions.fill(INVALID_POS);
+    }
+
+    constexpr GoalState(const State& state) noexcept : objects{state.objects} {
+        objectPositions.fill(INVALID_POS);
+        playerPositions.fill(INVALID_POS);
+    }
+
+    constexpr LookupResult at(const Position& p, uint8_t objectCount) const {
+        for (const auto& player : playerPositions) {
+            if (player == p) {
+                return {PLAYER, 0xFF};
+            }
+        }
+        
+        uint8_t floorIndex = 0xFF;
+        for (uint8_t i = 0; i < objectCount; ++i) {
+            if (objectPositions[i] != p) {
+                continue;
+            }
+
+            if (objects[i] != FLOOR) {
+                return {objects[i], i};
+            }
+
+            floorIndex = i;
+        }
+
+        if (floorIndex != 0xFF) {
+            return {FLOOR, floorIndex};
+        }
+
+        return {NOTHING, 0xFF};
+    }
+
+    constexpr Rank distance(const State& from, uint8_t objectCount) const {
+        Rank dist = 0;
+        for (uint8_t i = 0; i < objectCount; ++i) {
+            const Position& fromPos = from.objectPositions[i];
+            const Position& toPos = objectPositions[i];
+            if (toPos == INVALID_POS) {
+                continue;
+            }
+            dist += Position::distance(fromPos, toPos);
+        }
+        if (dist == 0) {
+            auto distances = playerPositions |
+                std::views::take_while([](auto&& p) { return p != INVALID_POS; }) |
+                std::views::transform([&](auto&& p) {
+                    return Position::distance(from.player, p);
+                });
+
+            assert(!std::ranges::empty(distances));
+            dist += std::ranges::min(distances);
+        }
+
+        return dist;
+    }
+
+    [[nodiscard]] friend constexpr bool operator==(const GoalState& a, const GoalState& b) {
+        return a.objectPositions == b.objectPositions
+            && a.objects == b.objects;
+    }
+};
 
 using HoleMask = uint64_t;
 static_assert(BASE <= std::numeric_limits<HoleMask>::digits);

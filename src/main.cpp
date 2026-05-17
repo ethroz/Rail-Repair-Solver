@@ -58,7 +58,7 @@ void printBlocks(const Grid& grid, const State& state) {
     std::cout << "blocks: [" << text << ']' << std::endl;
 }
 
-void printBlockUsage(const Grid& grid, const State& state) {
+void printBlockUsage(const Grid& grid, const GoalState& state) {
     std::string used;
     std::string unused;
     for (uint8_t i = 0; i < grid.objectCount; ++i) {

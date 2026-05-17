@@ -39,10 +39,6 @@ public:
     constexpr EndList findEndStates() {
         EndList endList;
         m_currentState = m_startState;
-        for (uint8_t i = 0; i < m_grid.objectCount; ++i) {
-            m_currentState.objectPositions[i] = INVALID_POS;
-        }
-        m_currentState.player = INVALID_POS;
         std::ranges::fill(m_used, false);
 
         for (const auto [index, startVec] : m_startList) {
@@ -55,7 +51,7 @@ public:
             traverseVector(startVec);
 
             if (!m_endStates.empty()) {
-                std::vector<State> uniqueStates;
+                std::vector<GoalState> uniqueStates;
                 for (auto const& state : m_endStates) {
                     if (!std::ranges::contains(uniqueStates, state)) {
                         uniqueStates.push_back(state);
@@ -323,15 +319,18 @@ private:
 
     constexpr void addAllValidEndStates(std::span<Position> holes) {
         if (holes.empty()) {
+            uint8_t i = 0;
             for (uint8_t dirValue = MIN_DIR; dirValue <= MAX_DIR; ++dirValue) {
                 const Direction dir = DIRECTION(dirValue);
                 Position pos = m_currentLeverPos + dir;
 
                 if (m_grid.at(m_currentState, pos).cell.isEmpty()) {
-                    m_currentState.player = pos;
-                    m_endStates.push_back(m_currentState);
-                    m_currentState.player = INVALID_POS;
+                    m_currentState.playerPositions[i++] = pos;
                 }
+            }
+            if (i > 0) {
+                m_endStates.push_back(m_currentState);
+                m_currentState.playerPositions.fill(INVALID_POS);
             }
         }
         else {
@@ -365,13 +364,13 @@ private:
     const StartList& m_startList;
     const State& m_startState;
     PriorityChainQueue<RankedPosition, Position, uint32_t, false> m_pathQueue;
-    State m_currentState;
+    GoalState m_currentState;
     std::array<bool, MAX_OBJECTS> m_usedBuffer{};
     std::span<bool> m_used;
     std::array<bool, MAX_OBJECTS> m_hasPathBuffer{};
     std::span<bool> m_hasPath;
     FixedVector<Position, BASE> m_holes;
-    std::vector<State> m_endStates;
+    std::vector<GoalState> m_endStates;
     Position m_currentLeverPos = INVALID_POS;
     size_t m_numUsed = 0;
 };

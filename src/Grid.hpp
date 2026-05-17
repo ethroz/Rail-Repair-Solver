@@ -10,11 +10,6 @@
 
 class Grid {
 public:
-    struct LookupResult {
-        Cell cell;
-        uint8_t index;
-    };
-
     constexpr Grid() = default;
 
     constexpr const Cell& at(const Position& p) const { return m_data[p.y()][p.x()]; }
@@ -22,30 +17,13 @@ public:
     constexpr const Cell& at(uint8_t x, uint8_t y) const { return m_data[y][x]; }
     constexpr Cell& at(uint8_t x, uint8_t y) { return m_data[y][x]; }
 
-    constexpr LookupResult at(const State& state, const Position& p) const {
-        uint8_t floorIndex = 0xFF;
-
-        for (uint8_t i = 0; i < objectCount; ++i) {
-            if (state.objectPositions[i] != p) {
-                continue;
-            }
-
-            if (state.objects[i] != FLOOR) {
-                return {state.objects[i], i};
-            }
-
-            floorIndex = i;
+    template<typename S>
+    constexpr auto at(const S& state, const Position& p) const {
+        auto res = state.at(p, objectCount);
+        if (res.cell == NOTHING) {
+            res.cell = at(p);
         }
-
-        if (floorIndex != 0xFF) {
-            return {FLOOR, floorIndex};
-        }
-
-        if (state.player == p) {
-            return {PLAYER, 0xFF};
-        }
-
-        return {at(p), 0xFF};
+        return res;
     }
 
     constexpr Position find(const Cell& cell) const {
@@ -66,7 +44,8 @@ public:
                (v.pos.x() == 0 && v.dir == LEFT);
     }
 
-    constexpr std::string toString(const State& state) const {
+    template<typename S>
+    constexpr std::string toString(const S& state) const {
         const uint8_t lineWidth = width + 1;
         std::string out(lineWidth * height, '\0');
         for (uint8_t y = 0; y < height; ++y) {
