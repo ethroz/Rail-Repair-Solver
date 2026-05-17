@@ -1,3 +1,3 @@
-Before connections: {1: 480}
-After connections:  {1: 480}
+Before connections: {1: 240}
+After connections:  {1: 240}
 Connections: {}

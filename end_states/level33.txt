@@ -1,3 +1,3 @@
-Before connections: {1: 2, 2: 1, 3: 12}
-After connections:  {1: 2, 2: 1, 3: 12}
-Connections: {1: {2: 2, 3: 24}, 2: {1: 2, 3: 12}, 3: {1: 6, 2: 6}}
+Before connections: {1: 2, 2: 1, 3: 4}
+After connections:  {1: 2, 2: 1, 3: 4}
+Connections: {1: {2: 2, 3: 8}, 2: {1: 2, 3: 4}, 3: {1: 2, 2: 2}}
