@@ -29,11 +29,9 @@ public:
         m_startList(startList),
         m_startState(startState),
         m_pathQueue(BASE, BASE),
-        m_used(m_usedBuffer.data(), 0),
-        m_hasPath(m_hasPathBuffer.data(), 0)
+        m_used(m_usedBuffer.data(), 0)
     {
         m_used = std::span<bool>(m_usedBuffer).subspan(0, m_grid.objectCount);
-        m_hasPath = std::span<bool>(m_hasPathBuffer).subspan(0, m_grid.objectCount);
     }
 
     constexpr EndList findEndStates() {
@@ -105,44 +103,6 @@ private:
 
         addAllValidEndStates(m_holes);
         return true;
-    }
-
-    constexpr HoleMask holeMask() const {
-        HoleMask mask = 0;
-        for (const auto& hole : m_holes) {
-            const uint8_t bit = hole.rank();
-            assert(bit < std::numeric_limits<HoleMask>::digits);
-            const auto maskBit = HoleMask(1) << bit;
-            if (mask & maskBit) {
-                continue;
-            }
-            mask |= maskBit;
-        }
-        return mask;
-    }
-
-    constexpr PositionalEncoding posEncode() const {
-        PositionalEncoding encoding = 0;
-        constexpr size_t ENC_BITS = sizeof(encoding) * 8;
-        constexpr auto POS_BITS = std::bit_width([](uint64_t base, int exp) constexpr {
-            uint64_t result = 1;
-            while (exp > 0) { result *= base; --exp; }
-            return result;
-        }(BASE + 1, MAX_OBJECTS) - 1);
-        static_assert(POS_BITS <= ENC_BITS);
-
-        PositionalEncoding multiplier = 1;
-        for (uint8_t i = 0; i < m_grid.objectCount; ++i) {
-            if (m_currentState.objectPositions[i] == INVALID_POS) {
-                encoding += BASE * multiplier;
-            }
-            else {
-                encoding += PositionalEncoding(m_currentState.objectPositions[i].rank()) * multiplier;
-            }
-            multiplier *= BASE + 1;
-        }
-
-        return encoding;
     }
 
     constexpr void handleEmptyCell(const Vector& v, Cell cell) {
@@ -367,8 +327,6 @@ private:
     GoalState m_currentState;
     std::array<bool, MAX_OBJECTS> m_usedBuffer{};
     std::span<bool> m_used;
-    std::array<bool, MAX_OBJECTS> m_hasPathBuffer{};
-    std::span<bool> m_hasPath;
     FixedVector<Position, BASE> m_holes;
     std::vector<GoalState> m_endStates;
     Position m_currentLeverPos = INVALID_POS;
