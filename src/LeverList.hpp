@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "Components.hpp"
+#include "CoordSystem.hpp"
 
 template<typename T, typename EmptyFn>
 class LeverList {
@@ -101,3 +102,40 @@ protected:
     size_t m_size = 0;
     EmptyFn m_emptyFn{};
 };
+
+struct IsZeroVector {
+    constexpr bool operator()(const Vector& v) const {
+        return v.dir == NONE;
+    }
+};
+using StartList = LeverList<Vector, IsZeroVector>;
+
+StartList createStartList(const Grid& grid) {
+    StartList list;
+
+    for (uint8_t x = 0; x < grid.width; x++) {
+        for (uint8_t y = 0; y < grid.height; y++) {
+            const auto cell = grid.at(x, y);
+            if (cell.isStart()) {
+                Direction dir;
+
+                const bool top = y == 0;
+                const bool right = x == grid.width - 1;
+                const bool bottom = y == grid.height - 1;
+                const bool left = x == 0;
+                uint8_t used = (top ? 0b1000 : 0) | (right ? 0b0100 : 0) | (bottom ? 0b0010 : 0) | (left ? 0b0001 : 0);
+                switch (used) {
+                case 0b1000: dir = DOWN;  break;
+                case 0b0100: dir = LEFT;  break;
+                case 0b0010: dir = UP;    break;
+                case 0b0001: dir = RIGHT; break;
+                default: throw std::invalid_argument("Cannot have a starting railroad on a corner");
+                }
+
+                list.insert(cell.index(), Vector{{x, y}, dir});
+            }
+        }
+    }
+
+    return list;
+}

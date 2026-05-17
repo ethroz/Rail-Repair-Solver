@@ -292,7 +292,7 @@ public:
         m_hasPath = std::span<bool>(m_hasPathBuffer).subspan(0, m_grid.objectCount);
     }
 
-    constexpr const EndList findEndStates() {
+    constexpr EndList findEndStates() {
         EndList endList;
         m_currentState = m_startState;
         for (uint8_t i = 0; i < m_grid.objectCount; ++i) {

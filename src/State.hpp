@@ -21,6 +21,7 @@ struct State {
 public:
     std::array<Cell, MAX_OBJECTS> objects = {};
     std::array<Position, MAX_OBJECTS> objectPositions = {};
+    Rank moves = 0;
     Rank rank = 0;
     Position player = {};
     uint8_t leverBits = 0;
@@ -37,6 +38,23 @@ public:
 
     constexpr size_t numToggledLevers() const {
         return std::popcount(leverBits);
+    }
+
+    static constexpr Rank distance(const State& from, const State& to, uint8_t objectCount) {
+        Rank dist = 0;
+        for (uint8_t i = 0; i < objectCount; ++i) {
+            const Position& fromPos = from.objectPositions[i];
+            const Position& toPos = to.objectPositions[i];
+            if (toPos == INVALID_POS) {
+                continue;
+            }
+            dist += Position::distance(fromPos, toPos);
+        }
+        if (dist == 0) {
+            dist += Position::distance(from.player, to.player);
+        }
+
+        return dist;
     }
 
     constexpr PositionalEncoding encodePos(uint8_t objectCount) const {
@@ -138,7 +156,7 @@ struct RankedDeadState : DeadState {
 
     constexpr RankedDeadState(const State& state) :
         DeadState(state),
-        rank{state.rank}
+        rank{state.moves}
     {}
 };
 
