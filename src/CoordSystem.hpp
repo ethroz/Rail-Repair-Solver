@@ -136,6 +136,13 @@ private:
 
 static constexpr Position INVALID_POS = {X_MAX, Y_MAX};
 
+template <>
+struct std::hash<Position> {
+    std::size_t operator()(const Position& p) const noexcept {
+        return std::hash<uint8_t>{}(p.value());
+    }
+};
+
 struct Vector {
     Position pos{};
     Direction dir{};

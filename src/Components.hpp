@@ -56,6 +56,7 @@ constexpr uint8_t START     = 0b00010000;
 constexpr uint8_t INDEX     = 0b00000111;
 constexpr size_t MAX_LEVERS = 3;
 constexpr size_t MAX_OBJECTS = 10;
+constexpr size_t MAX_HOLES = 8;
 
 enum CELL : uint8_t {
     PLAYER       = 0,

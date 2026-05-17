@@ -260,7 +260,7 @@ private:
                     auto mask = front.mask;
                     if (cell == HOLE) {
                         const uint8_t bit = forward.rank();
-                        assert(bit < std::numeric_limits<HoleMask>::digits);
+                        assert(bit < sizeof(HoleMask) * 8);
                         const auto maskBit = HoleMask(1) << bit;
                         if (mask & maskBit) {
                             continue;
@@ -327,7 +327,7 @@ private:
     GoalState m_currentState;
     std::array<bool, MAX_OBJECTS> m_usedBuffer{};
     std::span<bool> m_used;
-    FixedVector<Position, BASE> m_holes;
+    FixedVector<Position, MAX_HOLES> m_holes;
     std::vector<GoalState> m_endStates;
     Position m_currentLeverPos = INVALID_POS;
     size_t m_numUsed = 0;

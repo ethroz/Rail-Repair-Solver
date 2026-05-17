@@ -6,7 +6,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <ranges>
 #include <type_traits>
 
@@ -247,7 +246,7 @@ public:
 };
 
 using HoleMask = uint64_t;
-static_assert(BASE <= std::numeric_limits<HoleMask>::digits);
+static_assert(BASE <= sizeof(HoleMask) * 8);
 
 struct RankedPosition {
     HoleMask mask;
@@ -272,8 +271,8 @@ static_assert(std::constructible_from<Position, RankedPosition>);
 template <>
 struct std::hash<RankedPosition> {
     std::size_t operator()(const RankedPosition& p) const noexcept {
-        const std::size_t h1 = std::hash<std::uint64_t>{}(p.mask);
-        const std::size_t h2 = std::hash<std::uint8_t>{}(p.pos.value());
+        const std::size_t h1 = std::hash<HoleMask>{}(p.mask);
+        const std::size_t h2 = std::hash<Position>{}(p.pos);
         return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
     }
 };
