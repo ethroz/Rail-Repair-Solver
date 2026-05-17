@@ -12,6 +12,9 @@
 template<typename T, typename EmptyFn>
 class LeverList {
 public:
+    constexpr LeverList() noexcept = default;
+    constexpr ~LeverList() noexcept = default;
+
     constexpr size_t size() const { return m_size; }
     constexpr bool empty() const { return m_size == 0; }
 
@@ -26,14 +29,15 @@ public:
         return m_data[index];
     }
 
-    constexpr void insert(uint8_t index, T&& value) {
+    template<typename U>
+    constexpr void insert(uint8_t index, U&& value) {
         if (has(index)) {
             throw std::invalid_argument("Cannot have two starting railroads with the same index");
         }
         if (m_emptyFn(value)) {
             throw std::invalid_argument("Cannot insert an empty value");
         }
-        m_data[index] = std::move(value);
+        m_data[index] = std::forward<U>(value);
         ++m_size;
     }
 
@@ -89,8 +93,11 @@ public:
     constexpr pair_iterator begin() const { return pair_iterator(*this, 0); }
     constexpr pair_iterator end() const { return pair_iterator(*this, MAX_LEVERS); }
 
-private:
-    std::array<T, MAX_LEVERS> m_data = {};
+protected:
+    template<typename U>
+    using NodeContainer = std::array<U, MAX_LEVERS>;
+
+    NodeContainer<T> m_data = {};
     size_t m_size = 0;
     EmptyFn m_emptyFn{};
 };

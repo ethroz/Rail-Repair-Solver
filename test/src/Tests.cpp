@@ -217,6 +217,7 @@ TEST(FindEndStates_Level1) {
         "####V#\n";
 
     const auto [grid, state] = stateFromString(level);
+    ASSERT_EQ(2u, grid.objectCount);
     const auto startList = createStartList(grid);
 
     const auto endList = findEndStates(grid, startList, state);
@@ -225,7 +226,6 @@ TEST(FindEndStates_Level1) {
     const auto& endStates = endList.at(0);
     ASSERT_EQ(1u, endStates.size());
     EXPECT_EQ((Position{3,3}), endStates[0].player);
-    ASSERT_EQ(2u, grid.objectCount);
     EXPECT_EQ(MOVABLE_V,       endStates[0].objects[0]);
     EXPECT_EQ((Position{4,2}), endStates[0].objectPositions[0]);
     EXPECT_EQ(MOVABLE_H,       endStates[0].objects[1]);
@@ -244,6 +244,7 @@ TEST(FindEndStates_Level2) {
 
 
     const auto [grid, state] = stateFromString(level);
+    ASSERT_EQ(3u, grid.objectCount);
     const auto startList = createStartList(grid);
 
     const auto endList = findEndStates(grid, startList, state);
@@ -258,7 +259,6 @@ TEST(FindEndStates_Level2) {
     for (const auto& state : endStates) {
         EXPECT_TRUE(expectedPositions.contains(state.player));
     }
-    ASSERT_EQ(3u, grid.objectCount);
     EXPECT_EQ(MOVABLE_V,       endStates[0].objects[0]);
     EXPECT_EQ((Position{5,4}), endStates[0].objectPositions[0]);
     EXPECT_EQ(MOVABLE_H,       endStates[0].objects[1]);
@@ -286,6 +286,7 @@ TEST(FindEndStates_Level18) {
         "#######\n";
 
     const auto [grid, state] = stateFromString(level);
+    ASSERT_EQ(3u, grid.objectCount);
     const auto startList = createStartList(grid);
 
     const auto endList = findEndStates(grid, startList, state);
@@ -294,13 +295,50 @@ TEST(FindEndStates_Level18) {
     const auto& endStates = endList.at(0);
     ASSERT_EQ(1u, endStates.size());
     EXPECT_EQ((Position{2,2}), endStates[0].player);
-    ASSERT_EQ(3u, grid.objectCount);
     EXPECT_EQ(MOVABLE_NW,      endStates[0].objects[0]);
     EXPECT_EQ((Position{3,1}), endStates[0].objectPositions[0]);
     EXPECT_EQ(MOVABLE_H,       endStates[0].objects[1]);
     EXPECT_EQ((Position{2,1}), endStates[0].objectPositions[1]);
     EXPECT_EQ(FLOOR,           endStates[0].objects[2]);
     EXPECT_EQ((Position{3,3}), endStates[0].objectPositions[2]);
+}
+
+TEST(FindEndStates_Level25) {
+    constexpr std::string_view level =
+        "##V###\n"
+        "##R H2\n"
+        "#1 h##\n"
+        "##@ D1\n"
+        "#2 v #\n"
+        "####V#\n";
+
+    const auto [grid, state] = stateFromString(level);
+    ASSERT_EQ(2u, grid.objectCount);
+    const auto startList = createStartList(grid);
+
+    const auto endList = findEndStates(grid, startList, state);
+    ASSERT_EQ(2u, endList.size());
+    ASSERT_TRUE(endList.has(0));
+    ASSERT_TRUE(endList.has(1));
+    {
+        const auto& endStates = endList.at(0);
+        ASSERT_EQ(1u, endStates.size());
+        EXPECT_EQ((Position{2,2}), endStates[0].player);
+        EXPECT_EQ(MOVABLE_H,       endStates[0].objects[0]);
+        EXPECT_EQ((INVALID_POS),   endStates[0].objectPositions[0]);
+        EXPECT_EQ(MOVABLE_V,       endStates[0].objects[1]);
+        EXPECT_EQ((Position{4,4}), endStates[0].objectPositions[1]);
+    }
+
+    {
+        const auto& endStates = endList.at(1);
+        ASSERT_EQ(1u, endStates.size());
+        EXPECT_EQ((Position{2,4}), endStates[0].player);
+        EXPECT_EQ(MOVABLE_H,       endStates[0].objects[0]);
+        EXPECT_EQ((Position{3,1}), endStates[0].objectPositions[0]);
+        EXPECT_EQ(MOVABLE_V,       endStates[0].objects[1]);
+        EXPECT_EQ((INVALID_POS),   endStates[0].objectPositions[1]);
+    }
 }
 
 TEST(SimulateTrain) {

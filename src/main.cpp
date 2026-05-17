@@ -92,7 +92,7 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
 
     if (findGoals) {
         const auto startTime = std::chrono::steady_clock::now();
-        const auto endList = findEndStates(grid, startList, state);
+        auto endList = findEndStates(grid, startList, state);
         const auto runtime = std::chrono::steady_clock::now() - startTime;
         std::cout << "Ran in " << runtime << std::endl;
         std::cout << "\nStart state:" << std::endl;
@@ -107,19 +107,16 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
                 std::cout << std::endl;
             }
         }
-        std::string summary = "Summary: {";
-        bool first = true;
-        for (const auto [index, endStates] : endList) {
-            if (!first) {
-                summary += ", ";
-            }
-            first = false;
-            summary += std::to_string(int(index + 1));
-            summary += ": ";
-            summary += std::to_string(endStates.size());
-        }
-        summary += "}\n";
-        std::cout << summary << std::endl;
+        std::string before = "Before connections: " + endList.nodeSummary() + '\n';
+        std::cout << before << std::endl;
+
+        endList.connectLists(grid);
+
+        std::string after  = "After connections:  " + endList.nodeSummary() + '\n';
+        std::cout << after << std::endl;
+
+        std::string edges  = "Connections: " + endList.edgeSummary() + '\n';
+        std::cout << edges << std::endl;
 
         if (saveResult) {
             const std::filesystem::path endStatesDir = repoPath / "end_states";
@@ -128,7 +125,9 @@ bool solveLevel(const std::string& levelStr, bool saveResult, bool findGoals) {
             if (!file) {
                 throw std::runtime_error("Unable to create solution output file");
             }
-            file << summary;
+            file << before;
+            file << after;
+            file << edges;
         }
 
         return true;
